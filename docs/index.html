@@ -221,13 +221,18 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
 @media (max-width: 640px) {
   .tchip { padding-right: 8px; }
   .tchip .tv { font-size: 15px; }
-  .step { width: 28px; height: 28px; }
+  .step { width: 26px; height: 26px; }
   .transport .divider { margin: 0 3px; }
   .when .big { font-size: 15px; }
   .when .big.long { font-size: 13px; }
   .row1 { flex-wrap: wrap; row-gap: 6px; }
   .row1 .spacer { display: none; }
-  .row1 .tchip { margin-left: auto; border-right: 0; padding-right: 4px; }
+  .row1 { flex-wrap: wrap; }
+  .row1 .tchip { margin-left: auto; border-right: 0; padding-right: 2px; }
+  .row1 .tchip .tl { font-size: 9.5px; }
+  .transport { gap: 0; padding: 3px; }
+  .transport .seg button { padding: 4px 6px; font-size: 11.5px; }
+  .play { width: 34px; height: 34px; }
   .row1 .when { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; padding: 0 4px; }
   .row1 .when .big { flex: 1 1 auto; min-width: 0; text-align: left; }
   .dock > * { min-width: 0; }
@@ -243,7 +248,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
   /* fold the less used rows: event dots and shortcut chips */
   .fold { display: grid; }
   .dock.folded .evrow, .dock.folded .presets { display: none; }
-  .dock.folded .fold svg { transform: rotate(180deg); }
+  .dock:not(.folded) .fold svg { transform: rotate(180deg); }
   /* era card: two lines, tap to read the rest */
   .era { cursor: pointer; padding: 9px 12px; }
   .era .txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
