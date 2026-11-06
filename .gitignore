@@ -1,0 +1,8 @@
+# raw downloads used to build the data (large, re-downloadable)
+data_raw/
+dl_dem/
+dl_hd/
+dl_sp/
+dl_temp/
+dl_city/
+.DS_Store

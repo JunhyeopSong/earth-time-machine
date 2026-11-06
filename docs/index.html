@@ -1,0 +1,1813 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>지구 대륙 타임머신</title>
+<meta name="description" content="2억 5천만 년 전 판게아부터 1억 년 뒤까지, 실제 판 이동·고지형 데이터로 대륙의 움직임을 3D 지구본에서 돌려보는 시뮬레이터. 10개 언어 지원.">
+<meta name="theme-color" content="#05070d">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="canonical" href="https://junhyeopsong.github.io/earth-time-machine/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://junhyeopsong.github.io/earth-time-machine/">
+<meta property="og:title" content="지구 대륙 타임머신 · Continental Time Machine">
+<meta property="og:description" content="2억 5천만 년 전 판게아부터 1억 년 뒤까지, 실제 판 이동·고지형 데이터로 대륙의 움직임을 3D 지구본에서 돌려보는 시뮬레이터. 10개 언어 지원.">
+<meta property="og:image" content="https://junhyeopsong.github.io/earth-time-machine/og.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}*{box-sizing:border-box}img{max-width:100%}</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: the globe fills the screen; three small glass surfaces float over it — era chip (top-left),
+   settings button + popover (top-right), and a compact time dock (bottom). Radii follow Apple's concentric
+   rule: inner radius = outer radius − padding. Single dark look on purpose (space). */
+:root {
+  color-scheme: dark;
+  --space: #05070d;
+  --ink: #f2f5fa;
+  --ink-2: rgba(235, 240, 250, 0.72);
+  --ink-3: rgba(235, 240, 250, 0.5);
+  --accent: #ffb547;
+  --on: #30d158;                                   /* switch on (iOS green) */
+  --glass: linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.05));
+  --glass-solid: rgba(22, 26, 38, 0.86);
+  --hair: rgba(255, 255, 255, 0.18);
+  --fill: rgba(118, 118, 128, 0.24);               /* iOS tertiary fill */
+  --fill-2: rgba(118, 118, 128, 0.36);
+  --r-panel: 22px; --pad-panel: 8px; --r-inner: calc(var(--r-panel) - var(--pad-panel));   /* 14px */
+  --r-seg: 9px; --r-seg-in: 7px;                   /* segmented control: 9 outer, 2 inset → 7 */
+  --f-body: "IBM Plex Sans KR", -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+[hidden] { display: none !important; }
+html:lang(ja) { --f-body: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", "IBM Plex Sans KR", system-ui, sans-serif; }
+html:lang(zh-Hans) { --f-body: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "IBM Plex Sans KR", system-ui, sans-serif; }
+html:lang(zh-Hant) { --f-body: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", "IBM Plex Sans KR", system-ui, sans-serif; }
+html:lang(ru) { --f-body: -apple-system, "Segoe UI", Roboto, "Noto Sans", system-ui, sans-serif; }
+html, body { height: 100%; }
+body { background: var(--space); color: var(--ink); font-family: var(--f-body); overflow: hidden; -webkit-font-smoothing: antialiased; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; touch-action: none; }
+
+.glass {
+  background: var(--glass); border: 0.5px solid var(--hair);
+  -webkit-backdrop-filter: blur(22px) saturate(170%); backdrop-filter: blur(22px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.04), 0 10px 30px rgba(0,0,0,0.35);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass { background: var(--glass-solid); } }
+
+.hud {
+  position: fixed; inset: 0; pointer-events: none;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.hud > * { pointer-events: auto; }
+button, select { font: inherit; color: var(--ink); background: none; border: 0; cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible + .tr { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* era chip */
+.era { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + 12px);
+  width: min(340px, calc(100vw - 92px)); border-radius: var(--r-panel); padding: 10px 14px; display: grid; gap: 3px; text-align: left; }
+.era .eyebrow { font-size: 10.5px; letter-spacing: .1em; color: var(--ink-3); text-transform: uppercase; font-family: var(--f-data); display: flex; gap: 8px; align-items: center; }
+.era .period { display: flex; align-items: center; gap: 7px; font-size: 16px; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.era .chip { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.era .txt { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); display: block; }
+.era.open .txt { -webkit-line-clamp: unset; display: block; }
+.era .badge { font-size: 9.5px; padding: 1px 6px; border-radius: 999px; border: 0.5px solid var(--ink-3); color: var(--ink-2); letter-spacing: .02em; text-transform: none; }
+
+/* round icon buttons */
+.icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; line-height: 1; }
+.icon:hover { background: rgba(255,255,255,0.08); }
+#gear { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 12px); }
+#gear[aria-expanded="true"] { background: rgba(255,255,255,0.18); }
+
+/* settings popover */
+.sheet { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 60px);
+  width: min(300px, calc(100vw - 32px)); max-height: calc(100% - 210px); overflow-y: auto; border-radius: var(--r-panel); padding: var(--pad-panel);
+  display: grid; gap: var(--pad-panel); background: var(--glass-solid); z-index: 4; }
+.sheet .group { background: var(--fill); border-radius: var(--r-inner); padding: 2px 12px; display: grid; }
+.sheet .item { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; font-size: 13.5px; padding-block: 4px; }
+.sheet .item > span:first-child { min-width: 0; }
+.sheet .item + .item { border-top: 0.5px solid rgba(255,255,255,0.1); }
+.sheet .item small { color: var(--ink-3); font-size: 11px; display: block; }
+.sheet select { background: var(--fill-2); border-radius: 8px; padding: 5px 8px; font-size: 13px; }
+.sheet select option { background: #1c1f2a; }
+.sheet .foot { font-size: 10.5px; line-height: 1.5; color: var(--ink-3); padding: 4px 6px 2px; }
+.sheet .foot a { color: var(--ink-2); }
+.legend { padding: 8px 4px 2px; }
+.legend .scale { display: grid; gap: 4px; }
+.legend .bar { height: 6px; border-radius: 3px; }
+.legend .lbl { display: flex; justify-content: space-between; font-family: var(--f-data); font-size: 10px; color: var(--ink-3); }
+.combo { flex: 0 1 150px; display: flex; align-items: center; gap: 2px; background: var(--fill-2); border-radius: 8px; padding: 0 2px 0 8px; min-width: 0; }
+.combo input { width: 100%; min-width: 0; background: none; border: 0; color: var(--ink); font: inherit; font-size: 13px; padding: 5px 0; outline: none; }
+.combo input::-webkit-search-cancel-button { display: none; }
+.combo button { width: 22px; height: 22px; border-radius: 50%; color: var(--ink-3); font-size: 14px; }
+/* dropdown floats over the settings sheet (lives at <body> level, positioned under the search field) */
+#cityList { position: fixed; z-index: 20; list-style: none; margin: 0; padding: 4px; border-radius: var(--r-inner);
+  background: rgba(30, 34, 48, 0.96); border: 0.5px solid var(--hair); box-shadow: 0 14px 40px rgba(0,0,0,.5);
+  -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); max-height: 264px; overflow-y: auto; color: var(--ink); }
+#cityList li { padding: 7px 10px; border-radius: 10px; font-size: 13px; cursor: pointer; display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); align-items: baseline; gap: 10px; }
+#cityList li span, #cityList li small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cityList li small { color: var(--ink-3); font-size: 11px; text-align: right; }
+#cityList li[aria-selected="true"], #cityList li:hover { background: rgba(255,255,255,0.14); }
+#cityList .empty { color: var(--ink-3); cursor: default; }
+.tchip { display: grid; line-height: 1.1; text-align: right; padding-right: 12px; margin-right: 2px; border-right: 0.5px solid rgba(255,255,255,0.18); flex: none; }
+.tchip .tl { font-size: 10.5px; color: var(--ink-3); }   /* same size and slot as the Ma line beside it */
+.tchip .tv { font-family: var(--f-data); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }   /* matches the year line */
+.swatch { display: inline-block; width: 14px; height: 3px; border-radius: 2px; background: #ff7a45; vertical-align: middle; margin-left: 4px; }
+
+/* toggle switch (iOS-style, compact) */
+.sw { position: relative; display: inline-flex; flex: none; }
+.sw input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.sw .tr { width: 40px; height: 24px; border-radius: 12px; background: var(--fill-2); transition: background .2s; position: relative; }
+.sw .tr::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,.3); transition: transform .2s; }
+.sw input:checked + .tr { background: var(--on); }
+.sw input:checked + .tr::after { transform: translateX(16px); }
+
+/* segmented control (iOS) */
+.seg { display: inline-flex; background: var(--fill); border-radius: var(--r-seg); padding: 2px; gap: 0; }
+.seg button { border-radius: var(--r-seg-in); padding: 4px 9px; font-size: 12px; color: var(--ink-2); min-width: 40px; }
+.seg button[aria-checked="true"] { background: rgba(255,255,255,0.24); color: var(--ink); font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+
+/* globe controls */
+.nav { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: 50%; transform: translateY(-50%);
+  display: grid; padding: 4px; gap: 0; border-radius: 24px; }
+.nav button { width: 36px; height: 36px; border-radius: 50%; font-size: 17px; display: grid; place-items: center; }
+.nav button:hover { background: rgba(255,255,255,0.1); }
+
+/* time dock */
+.dock { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+  width: min(880px, calc(100vw - 32px)); border-radius: 30px; padding: 8px 16px 8px 8px; display: grid; gap: 4px; }
+.row1 { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* one cluster for everything that drives playback: step back · play/pause · step forward | speed */
+.transport { display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 22px; background: var(--fill); flex: none; }
+.transport .divider { width: 0.5px; height: 22px; background: rgba(255,255,255,0.22); margin: 0 6px; }
+.transport .seg { background: transparent; padding: 0; }
+.transport .seg button { border-radius: 18px; padding: 6px 11px; }   /* concentric: 22px cluster − 4px inset */
+.play { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #1a1205; flex: none; display: grid; place-items: center; }
+.play:hover { background: #ffc66e; }
+.play svg { width: 16px; height: 16px; fill: currentColor; }
+.play .pause { display: none; } .play.on .pause { display: block; } .play.on .tri { display: none; }
+.when { display: grid; line-height: 1.1; min-width: 0; text-align: right; }
+.when .big { font-family: var(--f-data); font-weight: 600; font-size: 17px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.when { flex: 0 1 auto; }
+.when .big.long { font-size: 14px; line-height: 1.25; }
+.when .ma { font-family: var(--f-data); font-size: 10.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.row1 .spacer { flex: 1; }
+.step { width: 32px; height: 32px; border-radius: 50%; color: var(--ink-2); flex: none; display: grid; place-items: center; }
+.step svg { width: 12px; height: 12px; fill: currentColor; }
+.step:hover { background: rgba(255,255,255,0.1); }
+.track { position: relative; height: 22px; margin: 0 2px 0 8px; }
+.strata { position: absolute; left: 0; right: 0; top: 7px; height: 8px; border-radius: 4px; overflow: hidden; display: flex; }
+.strata div { height: 100%; position: relative; }
+.strata div span { display: none; }
+.strata .fut { background: repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 4px, rgba(255,255,255,.1) 4px 8px); }
+input[type=range] { -webkit-appearance: none; appearance: none; position: absolute; inset: 0; width: 100%; height: 22px; margin: 0; background: transparent; cursor: pointer; }
+input[type=range]::-webkit-slider-runnable-track { height: 22px; background: transparent; }
+input[type=range]::-moz-range-track { height: 22px; background: transparent; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.45), 0 0 0 0.5px rgba(0,0,0,.2); }
+input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.45); }
+.ticks { position: relative; height: 12px; margin: 0 2px 0 8px; font-family: var(--f-data); font-size: 9.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.ticks span.now { color: var(--accent); font-weight: 600; }
+.evrow { position: relative; height: 8px; margin: -2px 2px 0 8px; }
+.evrow button { position: absolute; top: 0; width: 7px; height: 7px; padding: 0; border-radius: 50%; transform: translateX(-50%); background: var(--k); }
+.evrow button:hover { transform: translateX(-50%) scale(1.6); }
+.presets { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-left: 8px; padding-top: 2px; }
+.presets::-webkit-scrollbar { display: none; }
+.presets button { font-size: 11.5px; padding: 3px 10px; border-radius: 999px; color: var(--ink-2); background: var(--fill); white-space: nowrap; flex: none; }
+.presets button.on { background: rgba(255,181,71,0.22); color: var(--accent); }
+.presets .per { display: inline-flex; align-items: center; gap: 5px; }
+.presets .per i { width: 7px; height: 7px; border-radius: 2px; flex: none; }
+.presets .per.on { background: rgba(255,255,255,0.2); color: var(--ink); }
+.presets .psep { width: 0.5px; align-self: stretch; margin: 3px 2px; background: rgba(255,255,255,0.22); flex: none; }
+
+.hint { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+  font-size: 11.5px; color: var(--ink-2); padding: 5px 12px; border-radius: 999px; width: max-content; max-width: calc(100vw - 32px); text-align: center; text-wrap: balance; transition: opacity .6s; pointer-events: none; }
+.hint.gone { opacity: 0; }
+
+#pins { position: fixed; inset: 0; pointer-events: none; }
+.pin { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 2px 9px 2px 3px; border-radius: 999px;
+  background: rgba(10,14,24,.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 0.5px solid rgba(255,255,255,.2);
+  color: var(--ink); font-size: 11.5px; font-weight: 500; white-space: nowrap; pointer-events: auto; cursor: pointer; transform: translate(-7px, -50%); }
+.pin i { width: 10px; height: 10px; border-radius: 50%; background: var(--k); box-shadow: 0 0 0 2px rgba(0,0,0,.35), 0 0 10px var(--k); flex: none; }
+.pin:hover, .pin.on { background: rgba(20,26,40,.85); border-color: var(--k); z-index: 2; }
+.pin.dim span { display: none; } .pin.dim { padding-right: 3px; }
+.pop { position: fixed; z-index: 5; width: min(290px, calc(100vw - 32px)); padding: 12px 14px; display: grid; gap: 5px; border-radius: var(--r-panel); background: var(--glass-solid); }
+.pop .x { position: absolute; right: 6px; top: 6px; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; color: var(--ink-2); background: var(--fill); }
+.pop .pk { font-size: 10.5px; font-family: var(--f-data); letter-spacing: .08em; color: var(--k); }
+.pop h2 { margin: 0; font-size: 15px; padding-right: 26px; text-wrap: balance; }
+.pop .pa { font-family: var(--f-data); font-size: 11.5px; color: var(--ink-3); }
+.pop p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
+.pop .pf { font-size: 11.5px; line-height: 1.5; color: var(--ink-3); }
+.pop .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.pop .go { justify-self: start; border-radius: 999px; font-size: 12px; padding: 4px 11px; background: var(--fill-2); }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--ink-2); font-size: 14px; pointer-events: none; }
+.cityTag { position: fixed; left: 0; top: 0; pointer-events: none; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #000, 0 0 6px #000; transform: translate(10px, -50%); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .tchip { padding-right: 8px; }
+  .tchip .tv { font-size: 15px; }
+  .step { width: 28px; height: 28px; }
+  .transport .divider { margin: 0 3px; }
+  .when .big { font-size: 15px; }
+  .when .big.long { font-size: 13px; }
+  .row1 { flex-wrap: wrap; row-gap: 6px; }
+  .row1 .spacer { display: none; }
+  .row1 .tchip { margin-left: auto; border-right: 0; padding-right: 4px; }
+  .row1 .when { flex: 1 1 100%; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; }
+  .dock > * { min-width: 0; }
+  .transport .seg button { padding: 4px 7px; }
+  .seg button { padding: 4px 7px; min-width: 0; }
+  .hide-sm { display: none; }
+  .hint { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+  .nav { top: auto; transform: none; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div id="stage"></div>
+<div id="loading" data-i18n="loading">대륙 데이터를 불러오는 중…</div>
+<div class="cityTag" id="cityTag" hidden></div>
+<div id="pins" data-i18n-aria="pins" aria-label="지도 위 사건 주석"></div>
+<div class="glass pop" id="pop" role="dialog" aria-live="polite" hidden>
+  <button class="x" id="popX" data-i18n-aria="close" aria-label="닫기">×</button>
+  <div class="pk" id="popKind"></div>
+  <h2 id="popTitle"></h2>
+  <div class="pa" id="popAge"></div>
+  <p id="popText"></p>
+  <div class="pf" id="popFx" hidden></div>
+  <div class="acts"><button class="go" id="popGo" data-i18n="goHere">이 시점으로 이동</button><button class="go" id="popReplay" data-i18n="replay" hidden>효과 다시 보기</button></div>
+</div>
+
+<div class="hud">
+  <div class="glass era" id="era" aria-live="polite">
+    <span class="eyebrow"><span id="eraEyebrow">지질 시대</span><span class="badge" id="futureBadge" hidden>예측</span></span>
+    <span class="period"><span class="chip" id="eraChip"></span><span id="eraName">—</span></span>
+    <span class="txt" id="eraText"></span>
+  </div>
+
+
+  <button class="glass icon" id="gear" data-i18n-aria="settings" data-i18n-title="settings" aria-label="보기 설정" aria-expanded="false" aria-controls="sheet" title="보기 설정">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+  </button>
+  <section class="glass sheet" id="sheet" data-i18n-aria="settings" aria-label="보기 설정" hidden>
+    <div class="group">
+      <label class="item" for="lang"><span data-i18n="lang">언어</span><select id="lang"></select></label>
+    </div>
+    <div class="group">
+      <div class="item city">
+        <span data-i18n="track">위치 추적</span>
+        <div class="combo">
+          <input id="citySearch" type="search" data-i18n-ph="searchPh" placeholder="도시 검색" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="cityList" aria-autocomplete="list" aria-label="추적할 도시 검색">
+          <button id="cityClear" data-i18n-aria="trackOff" data-i18n-title="trackOff" aria-label="위치 추적 끄기" title="추적 끄기">×</button>
+        </div>
+      </div>
+      <ul id="cityList" role="listbox" data-i18n-aria="cityResults" aria-label="도시 검색 결과" hidden></ul>
+    </div>
+    <div class="group">
+      <label class="item"><span data-i18n="events">사건 주석</span><span class="sw"><input type="checkbox" role="switch" id="evts" checked><span class="tr"></span></span></label>
+      <label class="item"><span><span data-i18n="follow">재생 중 따라가기</span><small data-i18n="followSub">사건이 일어나는 곳으로 이동</small></span><span class="sw"><input type="checkbox" role="switch" id="follow" checked><span class="tr"></span></span></label>
+      <label class="item"><span data-i18n="spin">자동 회전</span><span class="sw"><input type="checkbox" role="switch" id="spin" checked><span class="tr"></span></span></label>
+    </div>
+    <div class="group">
+      <label class="item" id="coastRow"><span data-i18n="coast">현재 해안선 윤곽</span><span class="sw"><input type="checkbox" role="switch" id="coast" checked><span class="tr"></span></span></label>
+      <label class="item"><span><span data-i18n="seams">판 조각 경계</span><i class="swatch"></i></span><span class="sw"><input type="checkbox" role="switch" id="seams"><span class="tr"></span></span></label>
+      <label class="item"><span data-i18n="grid">위경도선</span><span class="sw"><input type="checkbox" role="switch" id="grid" checked><span class="tr"></span></span></label>
+    </div>
+    <div class="group">
+      <label class="item"><span data-i18n="temp">평균 기온</span><span class="sw"><input type="checkbox" role="switch" id="tempOn" checked><span class="tr"></span></span></label>
+      <div class="item"><span data-i18n="unit">단위</span>
+        <div class="seg" id="unit" role="radiogroup" data-i18n-aria="unit" aria-label="온도 단위">
+          <button role="radio" data-u="C" aria-checked="true">°C</button>
+          <button role="radio" data-u="F" aria-checked="false">°F</button>
+        </div>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="foot" id="foot">출처 · 과거 지형·해안선: <a href="https://zenodo.org/records/5460860" target="_blank" rel="noopener">PALEOMAP PaleoDEM</a> (Scotese &amp; Wright 2018, CC BY 4.0), 500만 년 간격 지도를 이어 붙임. 판 이동·판 조각: PALEOMAP 판 모델과 판 다각형 (<a href="https://doi.org/10.5281/zenodo.10596609" target="_blank" rel="noopener">Scotese PaleoAtlas</a>, CC BY 4.0), <a href="https://gws.gplates.org" target="_blank" rel="noopener">GPlates Web Service</a>. 미래(1억 년 후까지)는 Scotese의 판 운동 예측을 따르고, 충돌·섭입에 따른 지형 높낮이(산맥, 침식, 분지, 해구)는 단순한 규칙으로 계산한 예상입니다. 미래 바다의 해저 지형은 표시하지 않습니다. 평균 기온: PhanDA 지구 평균 지표 기온 복원(<a href="https://doi.org/10.1126/science.adk3705" target="_blank" rel="noopener">Judd et al. 2024, Science</a>), 지질시대 구간 중앙값을 선형 보간. 도시: <a href="https://www.naturalearthdata.com" target="_blank" rel="noopener">Natural Earth</a>(퍼블릭 도메인).</div>
+  </section>
+
+  <nav class="glass nav" data-i18n-aria="globeCtl" aria-label="지구본 조작">
+    <button id="zIn" data-i18n-aria="zoomIn" data-i18n-title="zoomIn" aria-label="확대" title="확대">＋</button>
+    <button id="zOut" data-i18n-aria="zoomOut" data-i18n-title="zoomOut" aria-label="축소" title="축소">－</button>
+    <button id="home" data-i18n-aria="home" data-i18n-title="home" aria-label="지구 전체 보기" title="지구 전체 보기">⤢</button>
+    <button id="toCity" data-i18n-aria="toCity" data-i18n-title="toCity" aria-label="추적 중인 도시로 이동" title="추적 중인 도시로 이동">◎</button>
+  </nav>
+
+  <div class="glass hint" id="hint"><span data-i18n="hint1">드래그로 돌리기 · 휠·핀치로 확대</span><span class="hide-sm" data-i18n="hint2"> · Space 재생/정지 · ←→ 100만 년씩 · 1·2·3 속도</span></div>
+
+  <section class="glass dock" data-i18n-aria="timeCtl" aria-label="시간 조절">
+    <div class="row1">
+      <div class="transport" role="group" data-i18n-aria="transport" aria-label="재생 조작">
+        <button class="step" id="back" data-i18n-aria="back" data-i18n-title="back" data-key="←" aria-label="100만 년 과거로" title="100만 년 과거로 (←)"><svg viewBox="0 0 16 16"><path d="M12 2.8v10.4a.6.6 0 0 1-.9.5L3.4 8.5a.6.6 0 0 1 0-1l7.7-5.2a.6.6 0 0 1 .9.5z"/></svg></button>
+        <button class="play" id="play" data-i18n-title="playTitle" data-key="Space" aria-label="재생" title="재생 / 정지 (Space)">
+          <svg class="tri" viewBox="0 0 16 16"><path d="M4 2.5v11a.6.6 0 0 0 .9.5l9-5.5a.6.6 0 0 0 0-1l-9-5.5a.6.6 0 0 0-.9.5z"/></svg>
+          <svg class="pause" viewBox="0 0 16 16"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></svg>
+        </button>
+        <button class="step" id="fwd" data-i18n-aria="fwd" data-i18n-title="fwd" data-key="→" aria-label="100만 년 미래로" title="100만 년 미래로 (→)"><svg viewBox="0 0 16 16"><path d="M4 2.8v10.4a.6.6 0 0 0 .9.5l7.7-5.2a.6.6 0 0 0 0-1L4.9 2.3a.6.6 0 0 0-.9.5z"/></svg></button>
+        <span class="divider" aria-hidden="true"></span>
+        <div class="seg" id="speed" role="radiogroup" data-i18n-aria="speed" aria-label="재생 속도">
+          <button role="radio" data-v="0.4" data-i18n="slow" data-i18n-title="slow" data-key="1" title="느리게 (1)" aria-keyshortcuts="1" aria-checked="false">느리게</button>
+          <button role="radio" data-v="1" data-i18n="normal" data-i18n-title="normal" data-key="2" title="보통 (2)" aria-keyshortcuts="2" aria-checked="true">보통</button>
+          <button role="radio" data-v="3" data-i18n="fast" data-i18n-title="fast" data-key="3" title="빠르게 (3)" aria-keyshortcuts="3" aria-checked="false">빠르게</button>
+        </div>
+      </div>
+      <span class="spacer"></span>
+      <div class="tchip" id="temp" title="지구 평균 지표 기온"><span class="tv" id="tempVal">—</span><span class="tl" data-i18n="temp">평균 기온</span></div>
+      <div class="when"><span class="big" id="when">현재</span><span class="ma" id="ma">0 Ma</span></div>
+    </div>
+    <div class="track">
+      <div class="strata" id="strata"></div>
+      <input type="range" id="t" min="-250" max="100" step="0.5" value="0" data-i18n-aria="slider" aria-label="시간 선택: 왼쪽이 과거, 오른쪽이 미래">
+    </div>
+    <div class="ticks" id="ticks"></div>
+    <div class="evrow" id="evrow" data-i18n-aria="majorEvents" aria-label="주요 사건"></div>
+    <div class="presets" id="presets"></div>
+  </section>
+</div>
+
+<script type="application/json" id="i18n-data">{"ko":{"name":"한국어","ui":{"title":"지구 대륙 타임머신","loading":"대륙 데이터를 불러오는 중…","loadFail":"대륙 데이터를 불러오지 못했습니다. 페이지를 새로고침해 주세요.","pins":"지도 위 사건 주석","close":"닫기","goHere":"이 시점으로 이동","replay":"효과 다시 보기","fxPrefix":"지도 효과: ","predicted":"예측","future":"미래","geoEra":"지질 시대","settings":"보기 설정","lang":"언어","track":"위치 추적","searchPh":"도시 검색","trackOff":"위치 추적 끄기","noCity":"찾는 도시가 없습니다","cityResults":"도시 검색 결과","events":"사건 주석","follow":"재생 중 따라가기","followSub":"사건이 일어나는 곳으로 이동","spin":"자동 회전","coast":"현재 해안선 윤곽","seams":"판 조각 경계","grid":"위경도선","temp":"평균 기온","unit":"단위","globeCtl":"지구본 조작","zoomIn":"확대","zoomOut":"축소","home":"지구 전체 보기","toCity":"추적 중인 도시로 이동","hint1":"드래그로 돌리기 · 휠·핀치로 확대","hint2":" · Space 재생/정지 · ←→ 100만 년씩 · 1·2·3 속도","timeCtl":"시간 조절","transport":"재생 조작","back":"100만 년 과거로","fwd":"100만 년 미래로","play":"재생","pause":"정지","playTitle":"재생 / 정지","speed":"재생 속도","slow":"느리게","normal":"보통","fast":"빠르게","tempTitle":"지구 평균 지표 기온","tempRange":"68% 범위","tempNoFuture":"미래 평균 기온은 복원 자료가 없습니다","present":"현재","sea":"해수면","slider":"시간 선택: 왼쪽이 과거, 오른쪽이 미래","majorEvents":"주요 사건","periodGo":"{p} 시작으로 이동","lat":"위도","collisionTitle":"{A}–{B} 충돌","collisionText":"Scotese의 예측대로 움직이는 {A}{wa} {B}의 대륙 지각이 이 무렵 겹치기 시작합니다. 실제로는 대륙 지각이 서로 파고들지 못하고 두꺼워지므로, 겹치는 지대는 산맥과 고원으로 솟고, 아래로 들어가는 쪽 판에는 산맥 무게에 눌린 낮은 분지가 생기도록 계산했습니다. 충돌이 멈추면 산맥은 침식으로 서서히 낮아집니다.","futureStartT":"판이 움직이기 시작","futureStartX":"판들이 Scotese가 예측한 경로로 움직입니다. 대륙이 바다 쪽으로 전진하는 가장자리 앞에는 해구가 깊어지고, 대륙끼리 부딪히면 산맥과 그 옆의 분지가 생깁니다.","foot":"출처 · 과거 지형·해안선: {paleodem} (Scotese & Wright 2018, CC BY 4.0), 500만 년 간격 지도를 이어 붙임. 판 이동·판 조각: PALEOMAP 판 모델과 판 다각형 ({atlas}, CC BY 4.0), {gws}. 미래(1억 년 후까지)는 Scotese의 판 운동 예측을 따르고, 충돌·섭입에 따른 지형 높낮이(산맥, 침식, 분지, 해구)는 단순한 규칙으로 계산한 예상입니다. 미래 바다의 해저 지형은 표시하지 않습니다. 평균 기온: PhanDA 지구 평균 지표 기온 복원({judd}), 지질시대 구간 중앙값을 선형 보간. 도시: {ne}(퍼블릭 도메인)."},"periods":["트라이아스기","쥐라기","백악기","팔레오기","네오기","제4기"],"presets":["공룡 멸종","인도 충돌","현재","+5천만 년","+1억 년"],"kinds":{"impact":"충돌","volcano":"대규모 화산","fossil":"화석·생물","tectonic":"지각 변동","climate":"기후","human":"인류","future":"예측","collision":"대륙 충돌 · 지형 계산"},"regions":{"북아메리카":"북아메리카","남아메리카":"남아메리카","유럽":"유럽","북아시아":"북아시아","인도·중동":"인도·중동","동아시아":"동아시아","아프리카":"아프리카","호주":"호주","남극":"남극","태평양 섬":"태평양 섬","유라시아":"유라시아"},"era":[["초대륙 판게아","거의 모든 대륙이 하나로 붙어 있습니다. 바로 직전(약 2억 5200만 년 전) 페름기 대멸종으로 바다 생물의 대부분이 사라졌습니다."],["공룡의 등장","판게아 안쪽은 건조한 사막이었고, 이 무렵 최초의 공룡이 나타났습니다."],["판게아가 갈라지기 시작","북아메리카와 아프리카 사이가 벌어지며 중앙 대서양이 열리기 시작합니다. 트라이아스기 말 대멸종도 이 무렵입니다."],["로라시아와 곤드와나","북쪽의 로라시아와 남쪽의 곤드와나로 크게 나뉘고, 그 사이에 테티스해가 펼쳐집니다."],["곤드와나의 분열","남아메리카·아프리카·인도·남극·호주로 이루어진 곤드와나가 조각나기 시작합니다."],["남대서양이 열림","남아메리카와 아프리카가 떨어지며 남대서양이 넓어집니다."],["인도가 북쪽으로","마다가스카르에서 떨어져 나온 인도가 빠른 속도로 아시아를 향해 이동합니다."],["공룡 대멸종","소행성 충돌로 공룡을 포함한 생물의 약 75%가 멸종합니다. 대륙 배치가 지금과 조금씩 비슷해집니다."],["인도와 아시아의 충돌","인도가 아시아에 부딪히며 히말라야 산맥과 티베트 고원이 솟아오르기 시작합니다."],["남극 빙상의 형성","남극이 남극점 위에 고립되고 주변 해류가 바뀌며 두꺼운 얼음으로 덮이기 시작합니다."],["오늘날과 거의 같은 지구","파나마 지협이 닫히기 직전입니다. 대륙 배치는 현재와 거의 같습니다."],["현재","대륙은 지금도 1년에 몇 cm씩 움직이고 있습니다. 슬라이더를 오른쪽으로 옮기면 미래 예측을 볼 수 있습니다."]],"events":[["시베리아 트랩 분출","시베리아에서 수십만 년 동안 용암이 쏟아져 나왔습니다. 이때 나온 온실가스가 페름기 대멸종(바다 생물 약 90% 멸종)의 주된 원인으로 꼽힙니다."],["최초의 공룡들","아르헨티나 이스치구알라스토 지층에서 에오랍토르, 헤레라사우루스 같은 가장 오래된 공룡 화석이 나왔습니다."],["중앙대서양 마그마 지대(CAMP)","판게아가 갈라지던 틈을 따라 대규모 화산 활동이 일어났습니다. 트라이아스기 말 대멸종과 같은 시기로, 이후 공룡이 육지를 차지합니다."],["카루-페라 화산","남아프리카와 남극에 걸친 용암 분출입니다. 곤드와나가 쪼개지기 시작한 신호로 보며, 쥐라기 초 해양 무산소 사건과 연결됩니다."],["중앙 대서양이 열림","북아메리카와 아프리카 사이에 해저 확장이 시작되어 진짜 바다가 생깁니다. 지금의 대서양이 이때 태어났습니다."],["시조새 (졸른호펜, 독일)","깃털과 이빨을 함께 가진 시조새 화석이 나온 석회암 지대입니다. 공룡에서 새로 이어지는 진화의 증거입니다."],["파라나-에텐데카 화산","브라질과 나미비아에 같은 용암 지대가 나뉘어 남아 있습니다. 남대서양이 열리기 직전의 화산 활동입니다."],["경남 고성 공룡 발자국","백악기 호숫가였던 경상분지에 공룡과 익룡, 새의 발자국 수천 개가 남았습니다. 세계적인 공룡 발자국 산지입니다."],["인도가 마다가스카르에서 분리","인도가 마다가스카르와 떨어져 1년에 15cm가 넘는 빠른 속도로 북쪽으로 이동하기 시작합니다."],["고비 사막의 공룡들","몽골 고비의 사암층에서 벨로키랍토르와 프로토케라톱스가 싸우던 모습 그대로 화석이 되었습니다."],["티라노사우루스 (헬크릭층)","북아메리카 서부의 헬크릭층에는 백악기 마지막 공룡인 티라노사우루스와 트리케라톱스가 남아 있습니다."],["칙술루브 소행성 충돌","지름 약 10km 소행성이 유카탄반도에 떨어져 지름 180km 크레이터를 남겼습니다. 공룡을 포함한 생물 약 75%가 멸종합니다."],["데칸 트랩","인도 서부를 2km 두께의 용암으로 덮은 분출입니다. 소행성 충돌과 함께 대멸종을 키웠다고 봅니다."],["팔레오세-에오세 극열기(PETM)","북대서양 화산 활동과 함께 탄소가 대량으로 나와 지구 기온이 5~8°C 올랐습니다. 오늘날 기후 변화를 이해하는 비교 사례입니다."],["인도-아시아 충돌","인도가 아시아에 부딪히며 히말라야와 티베트 고원이 솟기 시작했습니다. 지금도 1년에 약 5cm씩 밀고 있습니다."],["남극 빙상의 탄생","이산화탄소가 줄고 남극 주변 바닷길이 열리면서 남극 대륙이 처음으로 두꺼운 얼음에 덮였습니다."],["드레이크 해협이 열림","남아메리카와 남극이 떨어지면서 남극을 한 바퀴 도는 해류가 생겨 남극을 더 차갑게 고립시켰습니다."],["홍해와 동아프리카 열곡","아라비아가 아프리카에서 떨어져 나가며 홍해가 열리고, 아프리카 동쪽이 찢어지는 열곡이 생겼습니다."],["동해가 열리고 일본이 떨어져 나감","아시아 대륙 가장자리가 갈라지며 동해가 생기고, 일본 열도가 지금 위치로 밀려났습니다."],["지중해가 말라붙음","지브롤터가 막히면서 지중해가 거의 말라 두꺼운 소금층이 쌓였습니다(메시나절 염분 위기). 약 533만 년 전 대서양 물이 다시 들어옵니다."],["파나마 지협 형성","남북 아메리카가 이어지며 대서양과 태평양의 해류가 갈라졌고, 동물들이 두 대륙을 오갔습니다."],["루시 (오스트랄로피테쿠스)","에티오피아 아파르에서 발견된 두 발로 걸은 초기 인류 화석입니다."],["제주도 화산 활동 시작","해저 화산 분출로 제주도가 만들어지기 시작했습니다. 한라산은 수십만 년 전 이후의 분출로 높아졌습니다."],["호모 사피엔스 등장","모로코 제벨 이르후드에서 약 30만 년 전 현생 인류 화석이 나왔습니다."]],"fx":["섬광 → 지름 180km 크레이터 → 반경 약 1300km 열복사 → 대륙을 휩쓰는 충격파 → 전 지구로 퍼지는 먼지구름","용암이 덮은 범위(약 200만~700만 km²)와 퍼져 나가는 화산 가스","갈라지는 판게아를 따라 약 1000만 km²에 걸친 마그마 활동","남아프리카~남극에 걸친 용암 지대","남아메리카와 아프리카로 나뉘기 전 함께 덮인 용암 지대","인도 서부를 덮은 약 50만~150만 km²의 용암","제주도를 만든 화산 활동 범위","북대서양 화산 지대에서 시작해 전 지구로 퍼진 온난화","남극 대륙을 덮어 가는 빙상","충돌대에서 퍼져 나가는 지각 변형"]},"en":{"name":"English","ui":{"title":"Continental Time Machine","loading":"Loading continents…","loadFail":"Could not load the continent data. Please reload the page.","pins":"Event markers on the map","close":"Close","goHere":"Go to this moment","replay":"Replay effect","fxPrefix":"Map effect: ","predicted":"Forecast","future":"Future","geoEra":"Geologic time","settings":"View settings","lang":"Language","track":"Track a place","searchPh":"Search cities","trackOff":"Stop tracking","noCity":"No matching city","cityResults":"City search results","events":"Event markers","follow":"Follow events while playing","followSub":"Turn to where each event happens","spin":"Auto-rotate","coast":"Today's coastlines","seams":"Plate boundaries","grid":"Latitude/longitude","temp":"Mean temperature","unit":"Units","globeCtl":"Globe controls","zoomIn":"Zoom in","zoomOut":"Zoom out","home":"Whole globe","toCity":"Go to tracked city","hint1":"Drag to rotate · scroll or pinch to zoom","hint2":" · Space play/pause · ←→ 1 Myr steps · 1·2·3 speed","timeCtl":"Time controls","transport":"Playback","back":"1 million years back","fwd":"1 million years forward","play":"Play","pause":"Pause","playTitle":"Play / pause","speed":"Playback speed","slow":"Slow","normal":"Normal","fast":"Fast","tempTitle":"Global mean surface temperature","tempRange":"68% range","tempNoFuture":"No reconstruction exists for future temperatures","present":"Present","sea":"Sea level","slider":"Choose a time: past on the left, future on the right","majorEvents":"Major events","periodGo":"Jump to the start of the {p}","lat":"lat","collisionTitle":"{A}–{B} collision","collisionText":"Moving along Scotese's forecast paths, the continental crust of {A} and {B} begins to overlap about now. Real continents cannot slide into each other, so the crust thickens: the overlap rises into mountains and plateaus, and the plate that dives beneath is pressed down into a low basin beside them. Once the collision stops, erosion slowly wears the mountains down.","futureStartT":"Plates on the move","futureStartX":"The plates follow Scotese's forecast paths. Trenches deepen in front of continents advancing over the ocean, and where continents meet, mountains rise with basins beside them.","foot":"Sources · Past terrain and coastlines: {paleodem} (Scotese & Wright 2018, CC BY 4.0), 5-million-year maps blended together. Plate motions and plates: PALEOMAP plate model and plate polygons ({atlas}, CC BY 4.0), {gws}. The future (to +100 Myr) follows Scotese's forecast plate motions; terrain change from collisions and subduction (mountains, erosion, basins, trenches) is a simple rule-based estimate. Future sea-floor relief is not shown. Mean temperature: PhanDA global mean surface temperature ({judd}), stage medians linearly interpolated. Cities: {ne} (public domain)."},"periods":["Triassic","Jurassic","Cretaceous","Paleogene","Neogene","Quaternary"],"presets":["Dinosaur extinction","India collides","Present","+50 Myr","+100 Myr"],"kinds":{"impact":"Impact","volcano":"Large eruption","fossil":"Fossils & life","tectonic":"Tectonics","climate":"Climate","human":"Humans","future":"Forecast","collision":"Continental collision · terrain model"},"regions":{"북아메리카":"North America","남아메리카":"South America","유럽":"Europe","북아시아":"North Asia","인도·중동":"India & Middle East","동아시아":"East Asia","아프리카":"Africa","호주":"Australia","남극":"Antarctica","태평양 섬":"Pacific islands","유라시아":"Eurasia"},"era":[["Supercontinent Pangaea","Almost every continent is joined into one. Just before this (about 252 million years ago) the end-Permian extinction wiped out most life in the oceans."],["The first dinosaurs","The interior of Pangaea was a dry desert, and around this time the first dinosaurs appeared."],["Pangaea begins to split","North America and Africa pull apart and the central Atlantic starts to open. The end-Triassic extinction happens around now too."],["Laurasia and Gondwana","The land splits into Laurasia in the north and Gondwana in the south, with the Tethys Ocean between them."],["Gondwana breaks up","Gondwana — South America, Africa, India, Antarctica and Australia — starts to break into pieces."],["The South Atlantic opens","South America and Africa separate and the South Atlantic widens."],["India heads north","Split from Madagascar, India races toward Asia."],["The dinosaurs die out","An asteroid impact wipes out about 75% of species, dinosaurs included. The continents look more and more like today."],["India meets Asia","India crashes into Asia and the Himalayas and Tibetan Plateau begin to rise."],["Antarctica freezes over","Antarctica sits isolated over the South Pole; as ocean currents change it starts to be covered by thick ice."],["Almost today’s Earth","The Isthmus of Panama is about to close. The continents are nearly where they are today."],["Present","Continents still move a few centimetres a year. Drag the slider right to see the forecast."]],"events":[["Siberian Traps erupt","Lava poured out over Siberia for hundreds of thousands of years. The greenhouse gases released are the prime suspect for the end-Permian extinction (about 90% of marine species lost)."],["The first dinosaurs","Argentina's Ischigualasto beds hold some of the oldest dinosaur fossils, such as Eoraptor and Herrerasaurus."],["Central Atlantic Magmatic Province (CAMP)","Huge volcanic activity along the rift splitting Pangaea. It coincides with the end-Triassic extinction, after which dinosaurs dominate the land."],["Karoo–Ferrar eruptions","Lava spanning southern Africa and Antarctica — an early sign of Gondwana breaking up, linked to an Early Jurassic oceanic anoxic event."],["The central Atlantic opens","Sea-floor spreading starts between North America and Africa and a real ocean forms: the birth of today’s Atlantic."],["Archaeopteryx (Solnhofen, Germany)","The limestone that yielded Archaeopteryx, with feathers and teeth — evidence of the evolution from dinosaurs to birds."],["Paraná–Etendeka eruptions","The same lava field survives split between Brazil and Namibia: volcanism just before the South Atlantic opened."],["Goseong dinosaur tracks, Korea","In the Cretaceous lakeshores of the Gyeongsang Basin, thousands of dinosaur, pterosaur and bird tracks were left — one of the world’s great trackway sites."],["India splits from Madagascar","India breaks away from Madagascar and races north at more than 15 cm a year."],["Dinosaurs of the Gobi","In Mongolia's Gobi sandstones a Velociraptor and Protoceratops were fossilised mid-fight."],["Tyrannosaurus (Hell Creek)","Western North America's Hell Creek Formation preserves the last Cretaceous dinosaurs, Tyrannosaurus and Triceratops."],["Chicxulub asteroid impact","An asteroid about 10 km across struck the Yucatán, leaving a 180 km crater. About 75% of species, dinosaurs included, died out."],["Deccan Traps","Eruptions buried western India under 2 km of lava, thought to have worsened the extinction alongside the impact."],["Paleocene–Eocene Thermal Maximum (PETM)","With North Atlantic volcanism, a huge carbon release warmed the planet by 5–8 °C — a key comparison for today’s climate change."],["India–Asia collision","India hit Asia and the Himalayas and Tibetan Plateau began to rise. It still pushes about 5 cm a year."],["Antarctic ice sheet is born","As CO₂ fell and seaways around Antarctica opened, the continent was covered by thick ice for the first time."],["Drake Passage opens","South America and Antarctica part; a current circling Antarctica isolates it and makes it colder."],["Red Sea and East African Rift","Arabia splits from Africa, opening the Red Sea, while a rift starts tearing eastern Africa apart."],["East Sea / Sea of Japan opens","The edge of Asia splits, the East Sea (Sea of Japan) forms and the Japanese islands are pushed to where they are today."],["The Mediterranean dries up","With Gibraltar closed the Mediterranean nearly dried out, leaving thick salt (the Messinian salinity crisis). Atlantic water flooded back about 5.33 million years ago."],["Isthmus of Panama forms","The Americas join, splitting Atlantic and Pacific currents, and animals cross between the continents."],["Lucy (Australopithecus)","An early human relative that walked on two legs, found in Afar, Ethiopia."],["Jeju volcanism begins","Submarine eruptions start building Jeju Island. Hallasan grew through eruptions over the last few hundred thousand years."],["Homo sapiens appears","Fossils of modern humans about 300,000 years old were found at Jebel Irhoud, Morocco."]],"fx":["Flash → 180 km crater → thermal radiation out to ~1,300 km → a shock wave sweeping the continents → dust spreading around the globe","The lava-covered area (about 2–7 million km²) and spreading volcanic gas","Magmatism across ~10 million km² along the rifting Pangaea","Lava fields spanning southern Africa to Antarctica","Lava fields that covered South America and Africa before they parted","About 0.5–1.5 million km² of lava over western India","The area of volcanism that built Jeju Island","Warming that spread worldwide from North Atlantic volcanism","The ice sheet spreading over Antarctica","Crustal deformation rippling out from the collision zone"]},"ja":{"name":"日本語","ui":{"title":"大陸タイムマシン","loading":"大陸データを読み込み中…","loadFail":"大陸データを読み込めませんでした。ページを再読み込みしてください。","pins":"地図上の出来事","close":"閉じる","goHere":"この時点へ移動","replay":"エフェクトを再生","fxPrefix":"地図エフェクト：","predicted":"予測","future":"未来","geoEra":"地質時代","settings":"表示設定","lang":"言語","track":"位置を追跡","searchPh":"都市を検索","trackOff":"追跡をやめる","noCity":"該当する都市がありません","cityResults":"都市の検索結果","events":"出来事の注釈","follow":"再生中に出来事を追う","followSub":"出来事の場所へ移動","spin":"自動回転","coast":"現在の海岸線","seams":"プレートの境界","grid":"緯線・経線","temp":"平均気温","unit":"単位","globeCtl":"地球儀の操作","zoomIn":"拡大","zoomOut":"縮小","home":"地球全体を表示","toCity":"追跡中の都市へ移動","hint1":"ドラッグで回転 · ホイール/ピンチで拡大","hint2":" · Space 再生/停止 · ←→ 100万年ずつ · 1·2·3 速度","timeCtl":"時間の操作","transport":"再生操作","back":"100万年過去へ","fwd":"100万年未来へ","play":"再生","pause":"停止","playTitle":"再生 / 停止","speed":"再生速度","slow":"ゆっくり","normal":"標準","fast":"速く","tempTitle":"地球の平均地表気温","tempRange":"68%範囲","tempNoFuture":"未来の平均気温の復元データはありません","present":"現在","sea":"海面","slider":"時点の選択：左が過去、右が未来","majorEvents":"主な出来事","periodGo":"{p}の始まりへ移動","lat":"緯度","collisionTitle":"{A}と{B}の衝突","collisionText":"Scoteseの予測どおりに動く{A}と{B}の大陸地殻が、この頃から重なり始めます。実際には大陸地殻は互いにもぐり込めずに厚くなるため、重なる地帯は山脈や高原となり、下に沈み込む側のプレートには山脈の重みで押し下げられた低い盆地ができるように計算しています。衝突が止まると、山脈は侵食でゆっくり低くなります。","futureStartT":"動き始めるプレート","futureStartX":"プレートはScoteseの予測した経路で動きます。海へ進む大陸の前縁では海溝が深まり、大陸どうしがぶつかる所では山脈とその脇の盆地ができます。","foot":"出典 · 過去の地形・海岸線：{paleodem}（Scotese & Wright 2018、CC BY 4.0）、500万年ごとの地図を補間。プレートの動き・プレート：PALEOMAPプレートモデルとプレートポリゴン（{atlas}、CC BY 4.0）、{gws}。未来（1億年後まで）はScoteseのプレート運動予測に従い、衝突・沈み込みによる地形変化（山脈、侵食、盆地、海溝）は単純な規則による推定です。未来の海底地形は表示しません。平均気温：PhanDA 地球平均地表気温（{judd}）、各期の中央値を線形補間。都市：{ne}（パブリックドメイン）。"},"periods":["三畳紀","ジュラ紀","白亜紀","古第三紀","新第三紀","第四紀"],"presets":["恐竜の絶滅","インドの衝突","現在","+5000万年","+1億年"],"kinds":{"impact":"衝突","volcano":"巨大噴火","fossil":"化石・生物","tectonic":"地殻変動","climate":"気候","human":"人類","future":"予測","collision":"大陸衝突・地形の計算"},"regions":{"북아메리카":"北アメリカ","남아메리카":"南アメリカ","유럽":"ヨーロッパ","북아시아":"北アジア","인도·중동":"インド・中東","동아시아":"東アジア","아프리카":"アフリカ","호주":"オーストラリア","남극":"南極","태평양 섬":"太平洋の島々","유라시아":"ユーラシア"},"era":[["超大陸パンゲア","ほぼすべての大陸が一つにつながっています。直前（約2億5200万年前）のペルム紀末大量絶滅で、海の生物の大半が姿を消しました。"],["恐竜の登場","パンゲアの内陸は乾いた砂漠で、この頃に最初の恐竜が現れました。"],["パンゲアの分裂が始まる","北アメリカとアフリカの間が開き、中央大西洋が開き始めます。三畳紀末の大量絶滅もこの頃です。"],["ローラシアとゴンドワナ","北のローラシアと南のゴンドワナに大きく分かれ、その間にテチス海が広がります。"],["ゴンドワナの分裂","南アメリカ・アフリカ・インド・南極・オーストラリアからなるゴンドワナがばらばらになり始めます。"],["南大西洋が開く","南アメリカとアフリカが離れ、南大西洋が広がります。"],["北へ向かうインド","マダガスカルから分かれたインドが、速い速度でアジアへ向かいます。"],["恐竜の大量絶滅","小惑星の衝突で、恐竜を含む生物の約75%が絶滅します。大陸の配置は少しずつ現在に近づきます。"],["インドとアジアの衝突","インドがアジアにぶつかり、ヒマラヤ山脈とチベット高原が隆起し始めます。"],["南極氷床の形成","南極大陸が南極点の上で孤立し、海流が変わって厚い氷に覆われ始めます。"],["ほぼ現在の地球","パナマ地峡が閉じる直前です。大陸の配置は現在とほぼ同じです。"],["現在","大陸は今も1年に数cmずつ動いています。スライダーを右へ動かすと未来の予測が見られます。"]],"events":[["シベリア・トラップの噴火","シベリアで数十万年にわたり溶岩が噴き出しました。放出された温室効果ガスが、ペルム紀末大量絶滅（海の生物の約90%が絶滅）の主な原因とされます。"],["最初の恐竜たち","アルゼンチンのイスチグアラスト層から、エオラプトルやヘレラサウルスなど最古級の恐竜化石が見つかりました。"],["中央大西洋マグマ地域（CAMP）","分裂するパンゲアの割れ目に沿って大規模な火山活動が起きました。三畳紀末の大量絶滅と同じ時期で、その後恐竜が陸上を支配します。"],["カルー・フェラー火山活動","南アフリカから南極にかけての溶岩噴出です。ゴンドワナ分裂の兆しとされ、ジュラ紀前期の海洋無酸素事変と関係しています。"],["中央大西洋が開く","北アメリカとアフリカの間で海底拡大が始まり、本当の海ができます。今の大西洋の誕生です。"],["始祖鳥（ドイツ・ゾルンホーフェン）","羽毛と歯をあわせ持つ始祖鳥の化石が出た石灰岩地帯です。恐竜から鳥への進化の証拠です。"],["パラナ・エテンデカ火山活動","同じ溶岩台地がブラジルとナミビアに分かれて残っています。南大西洋が開く直前の火山活動です。"],["韓国・固城の恐竜足跡","白亜紀の湖畔だった慶尚盆地に、恐竜・翼竜・鳥の足跡が数千個残っています。世界有数の足跡化石の産地です。"],["インドがマダガスカルから分離","インドがマダガスカルから離れ、年15cmを超える速さで北へ動き始めます。"],["ゴビ砂漠の恐竜","モンゴル・ゴビの砂岩層で、ヴェロキラプトルとプロトケラトプスが戦う姿のまま化石になりました。"],["ティラノサウルス（ヘルクリーク層）","北アメリカ西部のヘルクリーク層には、白亜紀最後の恐竜ティラノサウルスとトリケラトプスが残っています。"],["チクシュルーブ小惑星の衝突","直径約10kmの小惑星がユカタン半島に落ち、直径180kmのクレーターを残しました。恐竜を含む生物の約75%が絶滅しました。"],["デカン・トラップ","インド西部を厚さ2kmの溶岩で覆った噴火です。小惑星衝突とともに大量絶滅を大きくしたと考えられています。"],["暁新世・始新世温暖化極大（PETM）","北大西洋の火山活動とともに大量の炭素が放出され、気温が5～8°C上がりました。今日の気候変動を理解する比較例です。"],["インドとアジアの衝突","インドがアジアにぶつかり、ヒマラヤとチベット高原が隆起し始めました。今も年約5cmずつ押し続けています。"],["南極氷床の誕生","CO₂が減り、南極周辺の海路が開いたことで、南極大陸が初めて厚い氷に覆われました。"],["ドレーク海峡が開く","南アメリカと南極が離れ、南極を一周する海流が生まれて南極をさらに冷たく孤立させました。"],["紅海と東アフリカ大地溝帯","アラビアがアフリカから離れて紅海が開き、アフリカ東部を引き裂く地溝帯ができました。"],["日本海（東海）が開く","アジア大陸の縁が割れて日本海（東海）ができ、日本列島が現在の位置へ押し出されました。"],["地中海が干上がる","ジブラルタルがふさがり、地中海がほぼ干上がって厚い塩の層ができました（メッシニアン塩分危機）。約533万年前に大西洋の水が再び流れ込みます。"],["パナマ地峡の形成","南北アメリカがつながり、大西洋と太平洋の海流が分かれ、動物が両大陸を行き来しました。"],["ルーシー（アウストラロピテクス）","エチオピアのアファールで見つかった、二足歩行をした初期人類の化石です。"],["済州島の火山活動の始まり","海底火山の噴火で済州島ができ始めました。漢拏山は数十万年前以降の噴火で高くなりました。"],["ホモ・サピエンスの登場","モロッコのジェベル・イルードで約30万年前の現生人類の化石が見つかりました。"]],"fx":["閃光 → 直径180kmのクレーター → 半径約1300kmの熱放射 → 大陸を襲う衝撃波 → 地球全体に広がる塵の雲","溶岩に覆われた範囲（約200万～700万km²）と広がる火山ガス","分裂するパンゲアに沿った約1000万km²のマグマ活動","南アフリカから南極にかけての溶岩台地","南アメリカとアフリカに分かれる前に覆った溶岩台地","インド西部を覆った約50万～150万km²の溶岩","済州島をつくった火山活動の範囲","北大西洋の火山地帯から世界に広がった温暖化","南極大陸を覆っていく氷床","衝突帯から広がる地殻の変形"]},"zh-Hans":{"name":"简体中文","ui":{"title":"大陆时光机","loading":"正在加载大陆数据…","loadFail":"无法加载大陆数据，请刷新页面。","pins":"地图上的事件","close":"关闭","goHere":"跳到这个时间","replay":"重播效果","fxPrefix":"地图效果：","predicted":"预测","future":"未来","geoEra":"地质年代","settings":"显示设置","lang":"语言","track":"追踪地点","searchPh":"搜索城市","trackOff":"停止追踪","noCity":"没有找到城市","cityResults":"城市搜索结果","events":"事件标注","follow":"播放时跟随事件","followSub":"转到事件发生的地点","spin":"自动旋转","coast":"现今海岸线","seams":"板块边界","grid":"经纬线","temp":"平均气温","unit":"单位","globeCtl":"地球仪操作","zoomIn":"放大","zoomOut":"缩小","home":"显示整个地球","toCity":"转到追踪的城市","hint1":"拖动旋转 · 滚轮/双指缩放","hint2":" · 空格 播放/暂停 · ←→ 每次100万年 · 1·2·3 速度","timeCtl":"时间控制","transport":"播放控制","back":"后退100万年","fwd":"前进100万年","play":"播放","pause":"暂停","playTitle":"播放 / 暂停","speed":"播放速度","slow":"慢","normal":"中","fast":"快","tempTitle":"全球平均地表温度","tempRange":"68%区间","tempNoFuture":"没有未来平均气温的重建数据","present":"现在","sea":"海平面","slider":"选择时间：左边是过去，右边是未来","majorEvents":"主要事件","periodGo":"跳到{p}的开始","lat":"纬度","collisionTitle":"{A}与{B}碰撞","collisionText":"按照Scotese预测路径移动的{A}和{B}的大陆地壳大约从此时开始重叠。现实中大陆地壳无法相互钻入，只会增厚，因此重叠地带隆升为山脉和高原，而俯冲一侧的板块被山脉重量压成低洼盆地。碰撞停止后，山脉会被慢慢侵蚀变低。","futureStartT":"板块开始移动","futureStartX":"板块沿Scotese预测的路径移动。向海洋推进的大陆前缘海沟加深，大陆相撞处形成山脉和旁边的盆地。","foot":"资料来源 · 过去的地形与海岸线：{paleodem}（Scotese & Wright 2018，CC BY 4.0），每500万年一张地图插值相连。板块运动与板块：PALEOMAP板块模型与板块多边形（{atlas}，CC BY 4.0），{gws}。未来（至1亿年后）沿用Scotese的板块运动预测；碰撞与俯冲造成的地形变化（山脉、侵蚀、盆地、海沟）是简单规则的估算。不显示未来的海底地形。平均气温：PhanDA全球平均地表温度（{judd}），各期中位数线性插值。城市：{ne}（公有领域）。"},"periods":["三叠纪","侏罗纪","白垩纪","古近纪","新近纪","第四纪"],"presets":["恐龙灭绝","印度碰撞","现在","+5000万年","+1亿年"],"kinds":{"impact":"撞击","volcano":"大规模火山","fossil":"化石与生物","tectonic":"构造运动","climate":"气候","human":"人类","future":"预测","collision":"大陆碰撞 · 地形计算"},"regions":{"북아메리카":"北美洲","남아메리카":"南美洲","유럽":"欧洲","북아시아":"北亚","인도·중동":"印度与中东","동아시아":"东亚","아프리카":"非洲","호주":"澳大利亚","남극":"南极洲","태평양 섬":"太平洋岛屿","유라시아":"欧亚大陆"},"era":[["超大陆盘古","几乎所有大陆都连成一块。就在此前（约2.52亿年前），二叠纪末大灭绝让海洋生物大多消失。"],["恐龙登场","盘古大陆内部是干燥的沙漠，最早的恐龙大约在这时出现。"],["盘古开始分裂","北美与非洲之间裂开，中大西洋开始张开。三叠纪末大灭绝也发生在这时。"],["劳亚古陆与冈瓦纳","大陆分成北边的劳亚古陆和南边的冈瓦纳，中间是特提斯洋。"],["冈瓦纳解体","由南美、非洲、印度、南极和澳大利亚组成的冈瓦纳开始碎裂。"],["南大西洋张开","南美洲与非洲分离，南大西洋逐渐变宽。"],["印度北上","从马达加斯加分离出来的印度快速向亚洲移动。"],["恐龙大灭绝","小行星撞击导致包括恐龙在内约75%的物种灭绝。大陆分布越来越接近今天。"],["印度与亚洲相撞","印度撞上亚洲，喜马拉雅山脉和青藏高原开始隆起。"],["南极冰盖形成","南极大陆孤立在南极点上，洋流改变后开始被厚厚的冰覆盖。"],["几乎与今天相同的地球","巴拿马地峡即将闭合。大陆分布与今天几乎相同。"],["现在","大陆至今仍以每年几厘米的速度移动。把滑块向右拖动可以看到未来的预测。"]],"events":[["西伯利亚暗色岩喷发","西伯利亚的熔岩喷涌了数十万年。释放的温室气体被认为是二叠纪末大灭绝（约90%海洋物种灭绝）的主要原因。"],["最早的恐龙","阿根廷伊斯奇瓜拉斯托地层出土了始盗龙、埃雷拉龙等最古老的恐龙化石。"],["中大西洋岩浆省（CAMP）","沿着盘古大陆裂开的缝隙发生了大规模火山活动。与三叠纪末大灭绝同时，此后恐龙称霸陆地。"],["卡鲁—费拉尔火山活动","横跨南非与南极的熔岩喷发，被视为冈瓦纳开始解体的信号，并与早侏罗世海洋缺氧事件有关。"],["中大西洋张开","北美与非洲之间开始海底扩张，形成真正的海洋——今天大西洋的诞生。"],["始祖鸟（德国索伦霍芬）","出土兼具羽毛和牙齿的始祖鸟化石的石灰岩产地，是恐龙演化为鸟类的证据。"],["巴拉那—埃滕德卡火山活动","同一片熔岩台地分开保存在巴西和纳米比亚，是南大西洋张开前夕的火山活动。"],["韩国固城恐龙足迹","白垩纪湖畔的庆尚盆地留下了数千个恐龙、翼龙和鸟类的足迹，是世界著名的足迹化石产地。"],["印度与马达加斯加分离","印度离开马达加斯加，以每年超过15厘米的速度向北移动。"],["戈壁沙漠的恐龙","在蒙古戈壁的砂岩中，伶盗龙与原角龙保持着搏斗的姿态成为化石。"],["霸王龙（地狱溪组）","北美西部的地狱溪组保存了白垩纪最后的恐龙——霸王龙和三角龙。"],["希克苏鲁伯小行星撞击","一颗直径约10公里的小行星撞击尤卡坦半岛，留下直径180公里的陨石坑。包括恐龙在内约75%的物种灭绝。"],["德干暗色岩","喷发让印度西部覆盖了2公里厚的熔岩，被认为与小行星撞击一起加剧了大灭绝。"],["古新世—始新世极热事件（PETM）","伴随北大西洋火山活动，大量碳释放使全球升温5～8°C，是理解当今气候变化的重要对照。"],["印度—亚洲碰撞","印度撞上亚洲，喜马拉雅和青藏高原开始隆起，至今仍以每年约5厘米的速度挤压。"],["南极冰盖诞生","随着二氧化碳减少、南极周围的海道打开，南极大陆首次被厚冰覆盖。"],["德雷克海峡打开","南美与南极分开，环绕南极的洋流形成，使南极更加寒冷孤立。"],["红海与东非大裂谷","阿拉伯从非洲分离，红海张开，非洲东部出现撕裂大地的裂谷。"],["日本海（韩国称东海）张开","亚洲大陆边缘裂开形成日本海（韩国称东海），日本列岛被推到今天的位置。"],["地中海干涸","直布罗陀封闭后地中海几乎干涸，留下厚厚的盐层（墨西拿盐度危机）。约533万年前大西洋海水重新灌入。"],["巴拿马地峡形成","南北美洲相连，大西洋与太平洋的洋流被分开，动物在两块大陆之间迁移。"],["露西（南方古猿）","在埃塞俄比亚阿法尔发现的两足行走的早期人类化石。"],["济州岛火山活动开始","海底火山喷发开始造就济州岛。汉拿山在最近几十万年的喷发中逐渐增高。"],["智人出现","在摩洛哥杰贝尔依罗发现约30万年前的现代人化石。"]],"fx":["闪光 → 直径180公里的陨石坑 → 半径约1300公里的热辐射 → 横扫大陆的冲击波 → 扩散到全球的尘埃云","熔岩覆盖的范围（约200万～700万平方公里）与扩散的火山气体","沿着裂开的盘古大陆、面积约1000万平方公里的岩浆活动","从南非延伸到南极的熔岩台地","南美与非洲分开前共同覆盖的熔岩台地","覆盖印度西部约50万～150万平方公里的熔岩","造就济州岛的火山活动范围","从北大西洋火山区扩散到全球的变暖","逐渐覆盖南极大陆的冰盖","从碰撞带向外扩散的地壳变形"]},"zh-Hant":{"name":"繁體中文","ui":{"title":"大陸時光機","loading":"正在載入大陸資料…","loadFail":"無法載入大陸資料，請重新整理頁面。","pins":"地圖上的事件","close":"關閉","goHere":"跳到這個時間","replay":"重播效果","fxPrefix":"地圖效果：","predicted":"預測","future":"未來","geoEra":"地質年代","settings":"顯示設定","lang":"語言","track":"追蹤地點","searchPh":"搜尋城市","trackOff":"停止追蹤","noCity":"找不到城市","cityResults":"城市搜尋結果","events":"事件標註","follow":"播放時跟隨事件","followSub":"轉到事件發生的地點","spin":"自動旋轉","coast":"現今海岸線","seams":"板塊邊界","grid":"經緯線","temp":"平均氣溫","unit":"單位","globeCtl":"地球儀操作","zoomIn":"放大","zoomOut":"縮小","home":"顯示整個地球","toCity":"轉到追蹤的城市","hint1":"拖曳旋轉 · 滾輪/雙指縮放","hint2":" · 空白鍵 播放/暫停 · ←→ 每次100萬年 · 1·2·3 速度","timeCtl":"時間控制","transport":"播放控制","back":"後退100萬年","fwd":"前進100萬年","play":"播放","pause":"暫停","playTitle":"播放 / 暫停","speed":"播放速度","slow":"慢","normal":"中","fast":"快","tempTitle":"全球平均地表溫度","tempRange":"68%區間","tempNoFuture":"沒有未來平均氣溫的重建資料","present":"現在","sea":"海平面","slider":"選擇時間：左邊是過去，右邊是未來","majorEvents":"主要事件","periodGo":"跳到{p}的開始","lat":"緯度","collisionTitle":"{A}與{B}碰撞","collisionText":"依照Scotese預測路徑移動的{A}和{B}的大陸地殼大約從此時開始重疊。現實中大陸地殼無法相互鑽入，只會增厚，因此重疊地帶隆升為山脈和高原，而隱沒一側的板塊被山脈重量壓成低窪盆地。碰撞停止後，山脈會被慢慢侵蝕變低。","futureStartT":"板塊開始移動","futureStartX":"板塊沿Scotese預測的路徑移動。向海洋推進的大陸前緣海溝加深，大陸相撞處形成山脈和旁邊的盆地。","foot":"資料來源 · 過去的地形與海岸線：{paleodem}（Scotese & Wright 2018，CC BY 4.0），每500萬年一張地圖內插相連。板塊運動與板塊：PALEOMAP板塊模型與板塊多邊形（{atlas}，CC BY 4.0），{gws}。未來（至1億年後）沿用Scotese的板塊運動預測；碰撞與隱沒造成的地形變化（山脈、侵蝕、盆地、海溝）是簡單規則的估算。不顯示未來的海底地形。平均氣溫：PhanDA全球平均地表溫度（{judd}），各期中位數線性內插。城市：{ne}（公有領域）。"},"periods":["三疊紀","侏羅紀","白堊紀","古近紀","新近紀","第四紀"],"presets":["恐龍滅絕","印度碰撞","現在","+5000萬年","+1億年"],"kinds":{"impact":"撞擊","volcano":"大規模火山","fossil":"化石與生物","tectonic":"構造運動","climate":"氣候","human":"人類","future":"預測","collision":"大陸碰撞 · 地形計算"},"regions":{"북아메리카":"北美洲","남아메리카":"南美洲","유럽":"歐洲","북아시아":"北亞","인도·중동":"印度與中東","동아시아":"東亞","아프리카":"非洲","호주":"澳洲","남극":"南極洲","태평양 섬":"太平洋島嶼","유라시아":"歐亞大陸"},"era":[["超大陸盤古","幾乎所有大陸都連成一塊。就在此前（約2.52億年前），二疊紀末大滅絕讓海洋生物大多消失。"],["恐龍登場","盤古大陸內部是乾燥的沙漠，最早的恐龍大約在這時出現。"],["盤古開始分裂","北美與非洲之間裂開，中大西洋開始張開。三疊紀末大滅絕也發生在這時。"],["勞亞古陸與岡瓦納","大陸分成北邊的勞亞古陸和南邊的岡瓦納，中間是特提斯洋。"],["岡瓦納解體","由南美、非洲、印度、南極和澳洲組成的岡瓦納開始碎裂。"],["南大西洋張開","南美洲與非洲分離，南大西洋逐漸變寬。"],["印度北上","從馬達加斯加分離出來的印度快速向亞洲移動。"],["恐龍大滅絕","小行星撞擊導致包括恐龍在內約75%的物種滅絕。大陸分布越來越接近今天。"],["印度與亞洲相撞","印度撞上亞洲，喜馬拉雅山脈和青藏高原開始隆起。"],["南極冰蓋形成","南極大陸孤立在南極點上，洋流改變後開始被厚厚的冰覆蓋。"],["幾乎與今天相同的地球","巴拿馬地峽即將閉合。大陸分布與今天幾乎相同。"],["現在","大陸至今仍以每年幾公分的速度移動。把滑桿向右拖曳可以看到未來的預測。"]],"events":[["西伯利亞暗色岩噴發","西伯利亞的熔岩噴湧了數十萬年。釋放的溫室氣體被認為是二疊紀末大滅絕（約90%海洋物種滅絕）的主要原因。"],["最早的恐龍","阿根廷伊斯奇瓜拉斯托地層出土了始盜龍、艾雷拉龍等最古老的恐龍化石。"],["中大西洋岩漿區（CAMP）","沿著盤古大陸裂開的縫隙發生了大規模火山活動。與三疊紀末大滅絕同時，此後恐龍稱霸陸地。"],["卡魯—費拉爾火山活動","橫跨南非與南極的熔岩噴發，被視為岡瓦納開始解體的信號，並與早侏羅世海洋缺氧事件有關。"],["中大西洋張開","北美與非洲之間開始海底擴張，形成真正的海洋——今天大西洋的誕生。"],["始祖鳥（德國索倫霍芬）","出土兼具羽毛和牙齒的始祖鳥化石的石灰岩產地，是恐龍演化為鳥類的證據。"],["巴拉那—埃滕德卡火山活動","同一片熔岩台地分開保存在巴西和納米比亞，是南大西洋張開前夕的火山活動。"],["韓國固城恐龍足跡","白堊紀湖畔的慶尚盆地留下了數千個恐龍、翼龍和鳥類的足跡，是世界著名的足跡化石產地。"],["印度與馬達加斯加分離","印度離開馬達加斯加，以每年超過15公分的速度向北移動。"],["戈壁沙漠的恐龍","在蒙古戈壁的砂岩中，伶盜龍與原角龍保持著搏鬥的姿態成為化石。"],["暴龍（地獄溪組）","北美西部的地獄溪組保存了白堊紀最後的恐龍——暴龍和三角龍。"],["希克蘇魯伯小行星撞擊","一顆直徑約10公里的小行星撞擊猶加敦半島，留下直徑180公里的隕石坑。包括恐龍在內約75%的物種滅絕。"],["德干暗色岩","噴發讓印度西部覆蓋了2公里厚的熔岩，被認為與小行星撞擊一起加劇了大滅絕。"],["古新世—始新世極熱事件（PETM）","伴隨北大西洋火山活動，大量碳釋放使全球升溫5～8°C，是理解當今氣候變遷的重要對照。"],["印度—亞洲碰撞","印度撞上亞洲，喜馬拉雅和青藏高原開始隆起，至今仍以每年約5公分的速度擠壓。"],["南極冰蓋誕生","隨著二氧化碳減少、南極周圍的海道打開，南極大陸首次被厚冰覆蓋。"],["德雷克海峽打開","南美與南極分開，環繞南極的洋流形成，使南極更加寒冷孤立。"],["紅海與東非大裂谷","阿拉伯從非洲分離，紅海張開，非洲東部出現撕裂大地的裂谷。"],["日本海（韓國稱東海）張開","亞洲大陸邊緣裂開形成日本海（韓國稱東海），日本列島被推到今天的位置。"],["地中海乾涸","直布羅陀封閉後地中海幾乎乾涸，留下厚厚的鹽層（墨西拿鹽度危機）。約533萬年前大西洋海水重新灌入。"],["巴拿馬地峽形成","南北美洲相連，大西洋與太平洋的洋流被分開，動物在兩塊大陸之間遷移。"],["露西（南方古猿）","在衣索比亞阿法爾發現的兩足行走的早期人類化石。"],["濟州島火山活動開始","海底火山噴發開始造就濟州島。漢拏山在最近幾十萬年的噴發中逐漸增高。"],["智人出現","在摩洛哥傑貝爾依羅發現約30萬年前的現代人化石。"]],"fx":["閃光 → 直徑180公里的隕石坑 → 半徑約1300公里的熱輻射 → 橫掃大陸的衝擊波 → 擴散到全球的塵埃雲","熔岩覆蓋的範圍（約200萬～700萬平方公里）與擴散的火山氣體","沿著裂開的盤古大陸、面積約1000萬平方公里的岩漿活動","從南非延伸到南極的熔岩台地","南美與非洲分開前共同覆蓋的熔岩台地","覆蓋印度西部約50萬～150萬平方公里的熔岩","造就濟州島的火山活動範圍","從北大西洋火山區擴散到全球的暖化","逐漸覆蓋南極大陸的冰蓋","從碰撞帶向外擴散的地殼變形"]},"es":{"name":"Español","ui":{"title":"Máquina del tiempo continental","loading":"Cargando los continentes…","loadFail":"No se pudieron cargar los datos de los continentes. Recarga la página.","pins":"Eventos en el mapa","close":"Cerrar","goHere":"Ir a este momento","replay":"Repetir efecto","fxPrefix":"Efecto en el mapa: ","predicted":"Pronóstico","future":"Futuro","geoEra":"Tiempo geológico","settings":"Ajustes de vista","lang":"Idioma","track":"Seguir un lugar","searchPh":"Buscar ciudades","trackOff":"Dejar de seguir","noCity":"No hay ninguna ciudad con ese nombre","cityResults":"Resultados de ciudades","events":"Marcadores de eventos","follow":"Seguir los eventos al reproducir","followSub":"Gira hacia donde ocurre cada evento","spin":"Giro automático","coast":"Costas actuales","seams":"Límites de placas","grid":"Latitud y longitud","temp":"Temperatura media","unit":"Unidad","globeCtl":"Controles del globo","zoomIn":"Acercar","zoomOut":"Alejar","home":"Ver todo el globo","toCity":"Ir a la ciudad seguida","hint1":"Arrastra para girar · rueda o pellizco para acercar","hint2":" · Espacio reproducir/pausar · ←→ pasos de 1 Ma · 1·2·3 velocidad","timeCtl":"Control del tiempo","transport":"Reproducción","back":"1 millón de años atrás","fwd":"1 millón de años adelante","play":"Reproducir","pause":"Pausar","playTitle":"Reproducir / pausar","speed":"Velocidad","slow":"Lenta","normal":"Normal","fast":"Rápida","tempTitle":"Temperatura media global de la superficie","tempRange":"rango 68 %","tempNoFuture":"No hay reconstrucción de temperaturas futuras","present":"Hoy","sea":"Nivel del mar","slider":"Elige un momento: pasado a la izquierda, futuro a la derecha","majorEvents":"Eventos principales","periodGo":"Ir al inicio del {p}","lat":"lat.","collisionTitle":"Colisión {A}–{B}","collisionText":"Siguiendo las trayectorias previstas por Scotese, la corteza continental de {A} y {B} empieza a solaparse por esta época. Los continentes reales no pueden meterse uno dentro de otro, así que la corteza se engrosa: la zona solapada se eleva en montañas y mesetas, y la placa que se hunde queda presionada en una cuenca baja junto a ellas. Cuando cesa la colisión, la erosión rebaja poco a poco las montañas.","futureStartT":"Las placas se ponen en marcha","futureStartX":"Las placas siguen las trayectorias previstas por Scotese. Las fosas se hacen más profundas frente a los continentes que avanzan sobre el océano, y donde chocan continentes se alzan montañas con cuencas a su lado.","foot":"Fuentes · Relieve y costas del pasado: {paleodem} (Scotese y Wright 2018, CC BY 4.0), mapas cada 5 millones de años interpolados. Movimiento de placas y placas: modelo de placas y polígonos PALEOMAP ({atlas}, CC BY 4.0), {gws}. El futuro (hasta +100 Ma) sigue el pronóstico de Scotese; los cambios de relieve por colisión y subducción (montañas, erosión, cuencas, fosas) son una estimación con reglas sencillas. No se muestra el relieve del fondo marino futuro. Temperatura media: PhanDA ({judd}), medianas por piso interpoladas linealmente. Ciudades: {ne} (dominio público)."},"periods":["Triásico","Jurásico","Cretácico","Paleógeno","Neógeno","Cuaternario"],"presets":["Extinción de los dinosaurios","Choque de la India","Hoy","+50 Ma","+100 Ma"],"kinds":{"impact":"Impacto","volcano":"Gran erupción","fossil":"Fósiles y vida","tectonic":"Tectónica","climate":"Clima","human":"Humanos","future":"Pronóstico","collision":"Colisión continental · modelo de relieve"},"regions":{"북아메리카":"Norteamérica","남아메리카":"Sudamérica","유럽":"Europa","북아시아":"Asia del Norte","인도·중동":"India y Oriente Medio","동아시아":"Asia oriental","아프리카":"África","호주":"Australia","남극":"Antártida","태평양 섬":"Islas del Pacífico","유라시아":"Eurasia"},"era":[["El supercontinente Pangea","Casi todos los continentes están unidos en uno. Justo antes (hace unos 252 millones de años) la extinción del final del Pérmico acabó con la mayor parte de la vida marina."],["Llegan los dinosaurios","El interior de Pangea era un desierto seco, y por esta época aparecieron los primeros dinosaurios."],["Pangea empieza a romperse","Norteamérica y África se separan y empieza a abrirse el Atlántico central. La extinción del final del Triásico también ocurre ahora."],["Laurasia y Gondwana","La tierra se divide en Laurasia al norte y Gondwana al sur, con el océano de Tetis entre ambas."],["Gondwana se fragmenta","Gondwana —Sudamérica, África, India, Antártida y Australia— empieza a partirse."],["Se abre el Atlántico sur","Sudamérica y África se separan y el Atlántico sur se ensancha."],["La India va hacia el norte","Separada de Madagascar, la India avanza rápido hacia Asia."],["Se extinguen los dinosaurios","El impacto de un asteroide acaba con cerca del 75 % de las especies, dinosaurios incluidos. Los continentes se parecen cada vez más a los actuales."],["La India choca con Asia","La India choca con Asia y empiezan a elevarse el Himalaya y la meseta tibetana."],["La Antártida se congela","La Antártida queda aislada sobre el polo sur; al cambiar las corrientes empieza a cubrirse de hielo grueso."],["Casi la Tierra de hoy","El istmo de Panamá está a punto de cerrarse. Los continentes están casi donde están hoy."],["Hoy","Los continentes aún se mueven unos centímetros al año. Arrastra el control a la derecha para ver el pronóstico."]],"events":[["Erupción de los Traps siberianos","La lava brotó en Siberia durante cientos de miles de años. Sus gases de efecto invernadero son el principal sospechoso de la extinción del Pérmico (cerca del 90 % de las especies marinas)."],["Los primeros dinosaurios","Los estratos de Ischigualasto (Argentina) guardan algunos de los dinosaurios más antiguos, como Eoraptor y Herrerasaurus."],["Provincia magmática del Atlántico central (CAMP)","Un enorme vulcanismo a lo largo de la grieta que partía Pangea. Coincide con la extinción del final del Triásico, tras la cual los dinosaurios dominan la tierra."],["Erupciones Karoo-Ferrar","Lava que abarcó el sur de África y la Antártida, señal temprana de la ruptura de Gondwana, ligada a un evento anóxico oceánico del Jurásico temprano."],["Se abre el Atlántico central","Empieza la expansión del fondo marino entre Norteamérica y África y nace un océano de verdad: el Atlántico actual."],["Archaeopteryx (Solnhofen, Alemania)","La caliza que dio el Archaeopteryx, con plumas y dientes: prueba de la evolución de dinosaurios a aves."],["Erupciones Paraná-Etendeka","El mismo campo de lava sobrevive repartido entre Brasil y Namibia: vulcanismo justo antes de abrirse el Atlántico sur."],["Huellas de dinosaurio de Goseong (Corea)","En las orillas de lagos cretácicos de la cuenca de Gyeongsang quedaron miles de huellas de dinosaurios, pterosaurios y aves."],["La India se separa de Madagascar","La India se separa de Madagascar y avanza al norte a más de 15 cm por año."],["Dinosaurios del Gobi","En las areniscas del Gobi (Mongolia) un Velociraptor y un Protoceratops quedaron fosilizados en plena lucha."],["Tyrannosaurus (Hell Creek)","La formación Hell Creek, en el oeste de Norteamérica, conserva a los últimos dinosaurios: Tyrannosaurus y Triceratops."],["Impacto del asteroide de Chicxulub","Un asteroide de unos 10 km cayó en Yucatán y dejó un cráter de 180 km. Cerca del 75 % de las especies, dinosaurios incluidos, desapareció."],["Traps del Decán","Erupciones que cubrieron el oeste de la India con 2 km de lava y que, junto al impacto, agravaron la extinción."],["Máximo térmico del Paleoceno-Eoceno (PETM)","Con el vulcanismo del Atlántico norte, una gran liberación de carbono calentó el planeta 5–8 °C: una comparación clave para el cambio climático actual."],["Colisión India-Asia","La India choca con Asia y empiezan a alzarse el Himalaya y el Tíbet. Aún empuja unos 5 cm al año."],["Nace el casquete antártico","Al bajar el CO₂ y abrirse los pasos marinos alrededor de la Antártida, el continente se cubrió por primera vez de hielo grueso."],["Se abre el paso de Drake","Sudamérica y la Antártida se separan; una corriente que rodea la Antártida la aísla y la enfría aún más."],["Mar Rojo y Rift de África oriental","Arabia se separa de África, se abre el mar Rojo y un rift empieza a desgarrar el este de África."],["Se abre el mar del Este / mar de Japón","El borde de Asia se parte, se forma el mar del Este (mar de Japón) y las islas japonesas se desplazan hasta su posición actual."],["El Mediterráneo se seca","Al cerrarse Gibraltar, el Mediterráneo casi se secó y dejó gruesas capas de sal (crisis salina del Messiniense). El agua atlántica volvió hace unos 5,33 millones de años."],["Se forma el istmo de Panamá","Las Américas se unen, se separan las corrientes del Atlántico y del Pacífico y los animales cruzan de un continente a otro."],["Lucy (Australopithecus)","Fósil de un pariente humano temprano que caminaba erguido, hallado en Afar (Etiopía)."],["Comienza el vulcanismo de Jeju","Erupciones submarinas empiezan a formar la isla de Jeju; el monte Halla creció con erupciones de los últimos cientos de miles de años."],["Aparece el Homo sapiens","En Jebel Irhoud (Marruecos) se hallaron fósiles de humanos modernos de unos 300 000 años."]],"fx":["Destello → cráter de 180 km → radiación térmica hasta ~1300 km → onda de choque sobre los continentes → polvo que cubre el globo","Área cubierta por lava (unos 2–7 millones de km²) y gases volcánicos que se extienden","Magmatismo en ~10 millones de km² a lo largo de la Pangea que se parte","Campos de lava del sur de África a la Antártida","Campos de lava que cubrían Sudamérica y África antes de separarse","Entre 0,5 y 1,5 millones de km² de lava en el oeste de la India","Área del vulcanismo que formó la isla de Jeju","Calentamiento que se extendió por el mundo desde el vulcanismo del Atlántico norte","El casquete de hielo que se extiende sobre la Antártida","Deformación de la corteza que se propaga desde la zona de colisión"]},"fr":{"name":"Français","ui":{"title":"Machine à remonter les continents","loading":"Chargement des continents…","loadFail":"Impossible de charger les données des continents. Rechargez la page.","pins":"Événements sur la carte","close":"Fermer","goHere":"Aller à ce moment","replay":"Rejouer l'effet","fxPrefix":"Effet sur la carte : ","predicted":"Prévision","future":"Futur","geoEra":"Temps géologique","settings":"Réglages d’affichage","lang":"Langue","track":"Suivre un lieu","searchPh":"Rechercher une ville","trackOff":"Arrêter le suivi","noCity":"Aucune ville trouvée","cityResults":"Résultats de recherche","events":"Repères d’événements","follow":"Suivre les événements pendant la lecture","followSub":"Tourner vers le lieu de chaque événement","spin":"Rotation automatique","coast":"Côtes actuelles","seams":"Limites de plaques","grid":"Latitudes et longitudes","temp":"Température moyenne","unit":"Unité","globeCtl":"Commandes du globe","zoomIn":"Zoom avant","zoomOut":"Zoom arrière","home":"Globe entier","toCity":"Aller à la ville suivie","hint1":"Glisser pour tourner · molette ou pincement pour zoomer","hint2":" · Espace lecture/pause · ←→ pas de 1 Ma · 1·2·3 vitesse","timeCtl":"Contrôle du temps","transport":"Lecture","back":"1 million d’années en arrière","fwd":"1 million d’années en avant","play":"Lecture","pause":"Pause","playTitle":"Lecture / pause","speed":"Vitesse","slow":"Lente","normal":"Normale","fast":"Rapide","tempTitle":"Température moyenne à la surface du globe","tempRange":"intervalle 68 %","tempNoFuture":"Aucune reconstruction n’existe pour les températures futures","present":"Aujourd’hui","sea":"Niveau de la mer","slider":"Choisir un moment : passé à gauche, futur à droite","majorEvents":"Événements majeurs","periodGo":"Aller au début du {p}","lat":"lat.","collisionTitle":"Collision {A}–{B}","collisionText":"En suivant les trajectoires prévues par Scotese, les croûtes continentales de {A} et {B} commencent à se chevaucher vers cette époque. Les continents ne peuvent pas s’enfoncer l’un dans l’autre : la croûte s’épaissit, la zone de chevauchement se soulève en montagnes et plateaux, et la plaque qui plonge est enfoncée en un bassin bas à côté. Une fois la collision terminée, l’érosion abaisse lentement les montagnes.","futureStartT":"Les plaques se mettent en route","futureStartX":"Les plaques suivent les trajectoires prévues par Scotese. Les fosses se creusent devant les continents qui avancent sur l’océan, et là où les continents se rencontrent, des montagnes s’élèvent avec des bassins à côté.","foot":"Sources · Relief et côtes du passé : {paleodem} (Scotese et Wright 2018, CC BY 4.0), cartes tous les 5 millions d’années interpolées. Mouvements et plaques : modèle et polygones de plaques PALEOMAP ({atlas}, CC BY 4.0), {gws}. Le futur (jusqu’à +100 Ma) suit les prévisions de Scotese ; les changements de relief dus aux collisions et à la subduction (montagnes, érosion, bassins, fosses) sont une estimation à règles simples. Le relief des fonds marins futurs n’est pas affiché. Température moyenne : PhanDA ({judd}), médianes par étage interpolées linéairement. Villes : {ne} (domaine public)."},"periods":["Trias","Jurassique","Crétacé","Paléogène","Néogène","Quaternaire"],"presets":["Extinction des dinosaures","Collision de l’Inde","Aujourd’hui","+50 Ma","+100 Ma"],"kinds":{"impact":"Impact","volcano":"Grande éruption","fossil":"Fossiles et vie","tectonic":"Tectonique","climate":"Climat","human":"Humains","future":"Prévision","collision":"Collision continentale · modèle de relief"},"regions":{"북아메리카":"Amérique du Nord","남아메리카":"Amérique du Sud","유럽":"Europe","북아시아":"Asie du Nord","인도·중동":"Inde et Moyen-Orient","동아시아":"Asie de l’Est","아프리카":"Afrique","호주":"Australie","남극":"Antarctique","태평양 섬":"Îles du Pacifique","유라시아":"Eurasie"},"era":[["Le supercontinent Pangée","Presque tous les continents sont réunis. Juste avant (il y a environ 252 millions d’années), l’extinction de la fin du Permien a anéanti l’essentiel de la vie marine."],["Les premiers dinosaures","L’intérieur de la Pangée était un désert sec ; les premiers dinosaures apparaissent vers cette époque."],["La Pangée commence à se fracturer","L’Amérique du Nord et l’Afrique s’écartent et l’Atlantique central commence à s’ouvrir. L’extinction de la fin du Trias survient aussi."],["Laurasie et Gondwana","Les terres se séparent en Laurasie au nord et Gondwana au sud, avec l’océan Téthys entre les deux."],["Le Gondwana se morcelle","Le Gondwana — Amérique du Sud, Afrique, Inde, Antarctique et Australie — commence à se briser."],["L’Atlantique Sud s’ouvre","L’Amérique du Sud et l’Afrique se séparent et l’Atlantique Sud s’élargit."],["L’Inde file vers le nord","Détachée de Madagascar, l’Inde fonce vers l’Asie."],["Les dinosaures disparaissent","Un impact d’astéroïde fait disparaître environ 75 % des espèces, dont les dinosaures. Les continents ressemblent de plus en plus à ceux d’aujourd’hui."],["L’Inde rencontre l’Asie","L’Inde heurte l’Asie ; l’Himalaya et le plateau tibétain commencent à se soulever."],["L’Antarctique se couvre de glace","Isolé au-dessus du pôle Sud, l’Antarctique commence à se couvrir d’une épaisse glace quand les courants changent."],["Presque la Terre actuelle","L’isthme de Panama est sur le point de se fermer. Les continents sont presque à leur place actuelle."],["Aujourd’hui","Les continents bougent encore de quelques centimètres par an. Faites glisser le curseur à droite pour voir la prévision."]],"events":[["Éruption des trapps de Sibérie","La lave a coulé en Sibérie pendant des centaines de milliers d’années. Les gaz à effet de serre émis sont le principal suspect de l’extinction du Permien (environ 90 % des espèces marines)."],["Les premiers dinosaures","Les couches d’Ischigualasto (Argentine) livrent parmi les plus anciens dinosaures, comme Eoraptor et Herrerasaurus."],["Province magmatique centre-atlantique (CAMP)","Un volcanisme gigantesque le long du rift qui fendait la Pangée. Il coïncide avec l’extinction de la fin du Trias, après laquelle les dinosaures dominent les terres."],["Éruptions du Karoo-Ferrar","Laves couvrant l’Afrique australe et l’Antarctique, premier signe de l’éclatement du Gondwana, liées à un événement anoxique océanique du Jurassique inférieur."],["L’Atlantique central s’ouvre","L’expansion océanique commence entre l’Amérique du Nord et l’Afrique : naissance de l’Atlantique actuel."],["Archaeopteryx (Solnhofen, Allemagne)","Le calcaire qui a livré l’Archaeopteryx, à plumes et à dents : preuve du passage des dinosaures aux oiseaux."],["Éruptions du Paraná-Etendeka","Le même champ de laves subsiste, partagé entre le Brésil et la Namibie : un volcanisme juste avant l’ouverture de l’Atlantique Sud."],["Empreintes de dinosaures de Goseong (Corée)","Sur les rives lacustres crétacées du bassin de Gyeongsang, des milliers d’empreintes de dinosaures, de ptérosaures et d’oiseaux."],["L’Inde se sépare de Madagascar","L’Inde quitte Madagascar et remonte vers le nord à plus de 15 cm par an."],["Dinosaures du Gobi","Dans les grès du Gobi (Mongolie), un Velociraptor et un Protoceratops ont été fossilisés en plein combat."],["Tyrannosaurus (Hell Creek)","La formation de Hell Creek, dans l’ouest de l’Amérique du Nord, conserve les derniers dinosaures : Tyrannosaurus et Triceratops."],["Impact de l’astéroïde de Chicxulub","Un astéroïde d’environ 10 km frappe le Yucatán et laisse un cratère de 180 km. Environ 75 % des espèces, dont les dinosaures, disparaissent."],["Trapps du Deccan","Des éruptions ensevelissent l’ouest de l’Inde sous 2 km de lave et auraient aggravé l’extinction avec l’impact."],["Maximum thermique Paléocène-Éocène (PETM)","Avec le volcanisme nord-atlantique, un énorme rejet de carbone réchauffe la planète de 5 à 8 °C : une comparaison clé pour le changement climatique actuel."],["Collision Inde-Asie","L’Inde heurte l’Asie ; l’Himalaya et le Tibet commencent à s’élever. Elle pousse encore d’environ 5 cm par an."],["Naissance de la calotte antarctique","Avec la baisse du CO₂ et l’ouverture des passages marins autour de l’Antarctique, le continent se couvre pour la première fois d’une épaisse glace."],["Ouverture du passage de Drake","L’Amérique du Sud et l’Antarctique se séparent ; un courant circumpolaire isole et refroidit l’Antarctique."],["Mer Rouge et rift est-africain","L’Arabie se détache de l’Afrique, la mer Rouge s’ouvre et un rift commence à déchirer l’est de l’Afrique."],["Ouverture de la mer de l’Est / mer du Japon","La marge de l’Asie se fend, la mer de l’Est (mer du Japon) se forme et l’archipel japonais est poussé à sa place actuelle."],["La Méditerranée s’assèche","Gibraltar fermé, la Méditerranée s’assèche presque et laisse d’épaisses couches de sel (crise de salinité messinienne). L’eau atlantique revient il y a environ 5,33 millions d’années."],["Formation de l’isthme de Panama","Les Amériques se rejoignent, séparant les courants atlantique et pacifique, et les animaux passent d’un continent à l’autre."],["Lucy (Australopithèque)","Fossile d’un ancien parent de l’humain qui marchait debout, trouvé dans l’Afar (Éthiopie)."],["Début du volcanisme de Jeju","Des éruptions sous-marines commencent à bâtir l’île de Jeju ; le mont Halla s’est élevé au fil des éruptions des derniers centaines de milliers d’années."],["Apparition d’Homo sapiens","À Jebel Irhoud (Maroc), on a trouvé des fossiles d’humains modernes vieux d’environ 300 000 ans."]],"fx":["Éclair → cratère de 180 km → rayonnement thermique jusqu’à ~1 300 km → onde de choc balayant les continents → poussière couvrant le globe","Zone couverte de lave (environ 2 à 7 millions de km²) et gaz volcaniques qui se propagent","Magmatisme sur ~10 millions de km² le long de la Pangée qui se fend","Champs de lave de l’Afrique australe à l’Antarctique","Champs de lave couvrant l’Amérique du Sud et l’Afrique avant leur séparation","0,5 à 1,5 million de km² de lave sur l’ouest de l’Inde","Zone du volcanisme qui a formé l’île de Jeju","Réchauffement propagé à tout le globe depuis le volcanisme nord-atlantique","La calotte de glace qui s’étend sur l’Antarctique","Déformation de la croûte qui se propage depuis la zone de collision"]},"de":{"name":"Deutsch","ui":{"title":"Kontinent-Zeitmaschine","loading":"Kontinente werden geladen…","loadFail":"Die Kontinentdaten konnten nicht geladen werden. Bitte lade die Seite neu.","pins":"Ereignisse auf der Karte","close":"Schließen","goHere":"Zu diesem Zeitpunkt","replay":"Effekt wiederholen","fxPrefix":"Karteneffekt: ","predicted":"Prognose","future":"Zukunft","geoEra":"Erdzeitalter","settings":"Ansicht","lang":"Sprache","track":"Ort verfolgen","searchPh":"Stadt suchen","trackOff":"Verfolgung beenden","noCity":"Keine passende Stadt","cityResults":"Suchergebnisse","events":"Ereignismarken","follow":"Ereignissen beim Abspielen folgen","followSub":"Zum Ort jedes Ereignisses drehen","spin":"Automatisch drehen","coast":"Heutige Küsten","seams":"Plattengrenzen","grid":"Breiten- und Längengrade","temp":"Mitteltemperatur","unit":"Einheit","globeCtl":"Globus-Steuerung","zoomIn":"Vergrößern","zoomOut":"Verkleinern","home":"Ganzer Globus","toCity":"Zur verfolgten Stadt","hint1":"Ziehen zum Drehen · Mausrad oder Zwei-Finger-Zoom","hint2":" · Leertaste Start/Pause · ←→ 1 Mio. Jahre · 1·2·3 Tempo","timeCtl":"Zeitsteuerung","transport":"Wiedergabe","back":"1 Million Jahre zurück","fwd":"1 Million Jahre vor","play":"Abspielen","pause":"Pause","playTitle":"Abspielen / Pause","speed":"Tempo","slow":"Langsam","normal":"Normal","fast":"Schnell","tempTitle":"Globale mittlere Oberflächentemperatur","tempRange":"68-%-Bereich","tempNoFuture":"Für zukünftige Temperaturen gibt es keine Rekonstruktion","present":"Heute","sea":"Meeresspiegel","slider":"Zeitpunkt wählen: links Vergangenheit, rechts Zukunft","majorEvents":"Wichtige Ereignisse","periodGo":"Zum Beginn des {p}","lat":"Breite","collisionTitle":"Kollision {A}–{B}","collisionText":"Auf Scoteses prognostizierten Bahnen beginnt sich die kontinentale Kruste von {A} und {B} etwa jetzt zu überlappen. Echte Kontinente können sich nicht ineinanderschieben – die Kruste verdickt sich: Der Überlappungsbereich hebt sich zu Gebirgen und Hochebenen, und die abtauchende Platte wird daneben zu einem tiefen Becken niedergedrückt. Endet die Kollision, trägt die Erosion die Berge langsam ab.","futureStartT":"Die Platten setzen sich in Bewegung","futureStartX":"Die Platten folgen Scoteses prognostizierten Bahnen. Vor Kontinenten, die aufs Meer vorrücken, vertiefen sich Tiefseegräben; wo Kontinente aufeinandertreffen, entstehen Gebirge mit Becken daneben.","foot":"Quellen · Relief und Küsten der Vergangenheit: {paleodem} (Scotese & Wright 2018, CC BY 4.0), Karten im 5-Millionen-Jahre-Abstand interpoliert. Plattenbewegung und Platten: PALEOMAP-Plattenmodell und -Polygone ({atlas}, CC BY 4.0), {gws}. Die Zukunft (bis +100 Mio. Jahre) folgt Scoteses Prognose; Reliefänderungen durch Kollision und Subduktion (Gebirge, Erosion, Becken, Gräben) sind eine einfache regelbasierte Schätzung. Zukünftiges Meeresbodenrelief wird nicht gezeigt. Mitteltemperatur: PhanDA ({judd}), Stufen-Mediane linear interpoliert. Städte: {ne} (gemeinfrei)."},"periods":["Trias","Jura","Kreide","Paläogen","Neogen","Quartär"],"presets":["Dinosaurier-Aussterben","Indien kollidiert","Heute","+50 Mio. J.","+100 Mio. J."],"kinds":{"impact":"Einschlag","volcano":"Großer Vulkanausbruch","fossil":"Fossilien & Leben","tectonic":"Tektonik","climate":"Klima","human":"Menschen","future":"Prognose","collision":"Kontinentkollision · Reliefmodell"},"regions":{"북아메리카":"Nordamerika","남아메리카":"Südamerika","유럽":"Europa","북아시아":"Nordasien","인도·중동":"Indien & Nahost","동아시아":"Ostasien","아프리카":"Afrika","호주":"Australien","남극":"Antarktis","태평양 섬":"Pazifikinseln","유라시아":"Eurasien"},"era":[["Superkontinent Pangaea","Fast alle Kontinente sind zu einem verbunden. Kurz zuvor (vor etwa 252 Millionen Jahren) löschte das Massenaussterben am Ende des Perm den Großteil des Meereslebens aus."],["Die ersten Dinosaurier","Das Innere Pangaeas war trockene Wüste; um diese Zeit erschienen die ersten Dinosaurier."],["Pangaea beginnt zu zerbrechen","Nordamerika und Afrika driften auseinander, der zentrale Atlantik beginnt sich zu öffnen. Auch das Aussterben am Ende der Trias fällt in diese Zeit."],["Laurasia und Gondwana","Das Land teilt sich in Laurasia im Norden und Gondwana im Süden, dazwischen liegt die Tethys."],["Gondwana zerfällt","Gondwana – Südamerika, Afrika, Indien, Antarktis und Australien – beginnt auseinanderzubrechen."],["Der Südatlantik öffnet sich","Südamerika und Afrika trennen sich, der Südatlantik wird breiter."],["Indien zieht nach Norden","Von Madagaskar getrennt, rast Indien auf Asien zu."],["Die Dinosaurier sterben aus","Ein Asteroideneinschlag löscht rund 75 % der Arten aus, auch die Dinosaurier. Die Kontinente ähneln immer mehr den heutigen."],["Indien trifft Asien","Indien prallt auf Asien, Himalaya und Tibet beginnen sich zu heben."],["Die Antarktis vereist","Isoliert über dem Südpol beginnt die Antarktis mit dem Wandel der Meeresströmungen dick zu vereisen."],["Fast die heutige Erde","Die Landenge von Panama schließt sich gleich. Die Kontinente liegen fast wie heute."],["Heute","Die Kontinente bewegen sich noch immer um einige Zentimeter pro Jahr. Schiebe den Regler nach rechts für die Prognose."]],"events":[["Ausbruch des Sibirischen Trapps","In Sibirien quoll hunderttausende Jahre lang Lava hervor. Die freigesetzten Treibhausgase gelten als Hauptursache des Perm-Aussterbens (rund 90 % der Meeresarten)."],["Die ersten Dinosaurier","Die Ischigualasto-Schichten in Argentinien bergen einige der ältesten Dinosaurier wie Eoraptor und Herrerasaurus."],["Zentralatlantische Magmatische Provinz (CAMP)","Gewaltiger Vulkanismus entlang des Risses, der Pangaea spaltete. Er fällt mit dem Aussterben am Ende der Trias zusammen, danach beherrschen Dinosaurier das Land."],["Karoo-Ferrar-Ausbrüche","Lava über dem südlichen Afrika und der Antarktis – frühes Zeichen des Zerfalls Gondwanas, verbunden mit einem ozeanischen anoxischen Ereignis im frühen Jura."],["Der zentrale Atlantik öffnet sich","Zwischen Nordamerika und Afrika beginnt die Ozeanbodenspreizung, ein echter Ozean entsteht: die Geburt des heutigen Atlantiks."],["Archaeopteryx (Solnhofen)","Der Kalkstein, der den gefiederten, bezahnten Archaeopteryx lieferte – Beleg für die Entwicklung von Dinosauriern zu Vögeln."],["Paraná-Etendeka-Ausbrüche","Dasselbe Lavafeld ist auf Brasilien und Namibia verteilt erhalten: Vulkanismus kurz vor der Öffnung des Südatlantiks."],["Dinosaurierspuren von Goseong (Korea)","An kreidezeitlichen Seeufern des Gyeongsang-Beckens blieben Tausende Spuren von Dinosauriern, Flugsauriern und Vögeln erhalten."],["Indien löst sich von Madagaskar","Indien trennt sich von Madagaskar und driftet mit über 15 cm pro Jahr nach Norden."],["Dinosaurier der Gobi","In den Sandsteinen der Gobi (Mongolei) wurden ein Velociraptor und ein Protoceratops mitten im Kampf versteinert."],["Tyrannosaurus (Hell Creek)","Die Hell-Creek-Formation im Westen Nordamerikas bewahrt die letzten Dinosaurier: Tyrannosaurus und Triceratops."],["Chicxulub-Asteroideneinschlag","Ein etwa 10 km großer Asteroid schlug auf Yucatán ein und hinterließ einen 180-km-Krater. Rund 75 % der Arten, auch die Dinosaurier, starben aus."],["Dekkan-Trapps","Ausbrüche begruben Westindien unter 2 km Lava und verschärften wohl zusammen mit dem Einschlag das Aussterben."],["Paläozän/Eozän-Temperaturmaximum (PETM)","Mit dem nordatlantischen Vulkanismus erwärmte eine riesige Kohlenstofffreisetzung die Erde um 5–8 °C – ein wichtiger Vergleich zum heutigen Klimawandel."],["Kollision Indien–Asien","Indien prallt auf Asien, Himalaya und Tibet beginnen zu wachsen. Noch heute schiebt es etwa 5 cm pro Jahr."],["Geburt des antarktischen Eisschilds","Als CO₂ sank und sich Meeresstraßen um die Antarktis öffneten, bedeckte erstmals dickes Eis den Kontinent."],["Die Drakestraße öffnet sich","Südamerika und die Antarktis trennen sich; eine zirkumpolare Strömung isoliert die Antarktis und kühlt sie weiter ab."],["Rotes Meer und Ostafrikanischer Graben","Arabien löst sich von Afrika, das Rote Meer öffnet sich, und ein Graben beginnt Ostafrika aufzureißen."],["Ostmeer / Japanisches Meer öffnet sich","Der Rand Asiens reißt auf, das Ostmeer (Japanische Meer) entsteht und Japan wird an seine heutige Position geschoben."],["Das Mittelmeer trocknet aus","Mit geschlossener Straße von Gibraltar trocknete das Mittelmeer fast aus und hinterließ dicke Salzschichten (Messinische Salinitätskrise). Vor etwa 5,33 Mio. Jahren strömte Atlantikwasser zurück."],["Die Landenge von Panama entsteht","Die Amerikas verbinden sich, Atlantik- und Pazifikströmungen werden getrennt, Tiere wandern zwischen den Kontinenten."],["Lucy (Australopithecus)","Fossil eines frühen, aufrecht gehenden Verwandten des Menschen aus Afar, Äthiopien."],["Beginn des Vulkanismus auf Jeju","Unterseeische Ausbrüche beginnen die Insel Jeju aufzubauen; der Hallasan wuchs durch Ausbrüche der letzten Hunderttausende Jahre."],["Homo sapiens erscheint","In Jebel Irhoud (Marokko) wurden etwa 300 000 Jahre alte Fossilien moderner Menschen gefunden."]],"fx":["Lichtblitz → 180-km-Krater → Wärmestrahlung bis ~1300 km → Druckwelle über die Kontinente → Staub, der den Globus umhüllt","Von Lava bedeckte Fläche (etwa 2–7 Mio. km²) und sich ausbreitende Vulkangase","Magmatismus auf ~10 Mio. km² entlang des zerbrechenden Pangaea","Lavafelder vom südlichen Afrika bis zur Antarktis","Lavafelder, die Südamerika und Afrika vor ihrer Trennung bedeckten","Etwa 0,5–1,5 Mio. km² Lava über Westindien","Gebiet des Vulkanismus, der die Insel Jeju schuf","Erwärmung, die sich vom nordatlantischen Vulkanismus aus weltweit ausbreitete","Der Eisschild, der sich über die Antarktis ausbreitet","Krustenverformung, die sich von der Kollisionszone ausbreitet"]},"pt":{"name":"Português","ui":{"title":"Máquina do tempo continental","loading":"Carregando os continentes…","loadFail":"Não foi possível carregar os dados dos continentes. Recarregue a página.","pins":"Eventos no mapa","close":"Fechar","goHere":"Ir para este momento","replay":"Repetir efeito","fxPrefix":"Efeito no mapa: ","predicted":"Previsão","future":"Futuro","geoEra":"Tempo geológico","settings":"Ajustes de visualização","lang":"Idioma","track":"Acompanhar um lugar","searchPh":"Buscar cidades","trackOff":"Parar de acompanhar","noCity":"Nenhuma cidade encontrada","cityResults":"Resultados da busca","events":"Marcadores de eventos","follow":"Seguir eventos durante a reprodução","followSub":"Girar até o local de cada evento","spin":"Rotação automática","coast":"Litorais atuais","seams":"Limites de placas","grid":"Latitude e longitude","temp":"Temperatura média","unit":"Unidade","globeCtl":"Controles do globo","zoomIn":"Aproximar","zoomOut":"Afastar","home":"Globo inteiro","toCity":"Ir para a cidade acompanhada","hint1":"Arraste para girar · roda ou pinça para zoom","hint2":" · Espaço reproduzir/pausar · ←→ passos de 1 Ma · 1·2·3 velocidade","timeCtl":"Controle do tempo","transport":"Reprodução","back":"1 milhão de anos para trás","fwd":"1 milhão de anos para frente","play":"Reproduzir","pause":"Pausar","playTitle":"Reproduzir / pausar","speed":"Velocidade","slow":"Lenta","normal":"Normal","fast":"Rápida","tempTitle":"Temperatura média global da superfície","tempRange":"faixa de 68%","tempNoFuture":"Não há reconstrução de temperaturas futuras","present":"Hoje","sea":"Nível do mar","slider":"Escolha um momento: passado à esquerda, futuro à direita","majorEvents":"Principais eventos","periodGo":"Ir para o início do {p}","lat":"lat.","collisionTitle":"Colisão {A}–{B}","collisionText":"Seguindo as trajetórias previstas por Scotese, a crosta continental de {A} e {B} começa a se sobrepor por volta desta época. Continentes reais não conseguem entrar um no outro, então a crosta engrossa: a zona sobreposta se ergue em montanhas e planaltos, e a placa que mergulha é pressionada numa bacia baixa ao lado. Quando a colisão cessa, a erosão rebaixa lentamente as montanhas.","futureStartT":"As placas entram em movimento","futureStartX":"As placas seguem as trajetórias previstas por Scotese. Fossas se aprofundam diante de continentes que avançam sobre o oceano, e onde continentes se encontram surgem montanhas com bacias ao lado.","foot":"Fontes · Relevo e litorais do passado: {paleodem} (Scotese e Wright 2018, CC BY 4.0), mapas a cada 5 milhões de anos interpolados. Movimento e placas: modelo e polígonos de placas PALEOMAP ({atlas}, CC BY 4.0), {gws}. O futuro (até +100 Ma) segue a previsão de Scotese; mudanças de relevo por colisão e subducção (montanhas, erosão, bacias, fossas) são uma estimativa com regras simples. O relevo do fundo oceânico futuro não é mostrado. Temperatura média: PhanDA ({judd}), medianas por andar interpoladas linearmente. Cidades: {ne} (domínio público)."},"periods":["Triássico","Jurássico","Cretáceo","Paleogeno","Neogeno","Quaternário"],"presets":["Extinção dos dinossauros","Colisão da Índia","Hoje","+50 Ma","+100 Ma"],"kinds":{"impact":"Impacto","volcano":"Grande erupção","fossil":"Fósseis e vida","tectonic":"Tectônica","climate":"Clima","human":"Humanos","future":"Previsão","collision":"Colisão continental · modelo de relevo"},"regions":{"북아메리카":"América do Norte","남아메리카":"América do Sul","유럽":"Europa","북아시아":"Ásia do Norte","인도·중동":"Índia e Oriente Médio","동아시아":"Ásia Oriental","아프리카":"África","호주":"Austrália","남극":"Antártida","태평양 섬":"Ilhas do Pacífico","유라시아":"Eurásia"},"era":[["O supercontinente Pangeia","Quase todos os continentes estão unidos em um só. Pouco antes (há cerca de 252 milhões de anos), a extinção do fim do Permiano eliminou a maior parte da vida marinha."],["Surgem os dinossauros","O interior da Pangeia era um deserto seco, e por esta época apareceram os primeiros dinossauros."],["A Pangeia começa a se partir","América do Norte e África se afastam e o Atlântico central começa a se abrir. A extinção do fim do Triássico também ocorre agora."],["Laurásia e Gondwana","A terra se divide em Laurásia ao norte e Gondwana ao sul, com o oceano Tétis entre elas."],["Gondwana se fragmenta","Gondwana — América do Sul, África, Índia, Antártida e Austrália — começa a se partir."],["O Atlântico Sul se abre","América do Sul e África se separam e o Atlântico Sul se alarga."],["A Índia segue para o norte","Separada de Madagascar, a Índia avança rapidamente rumo à Ásia."],["Os dinossauros se extinguem","O impacto de um asteroide elimina cerca de 75% das espécies, inclusive os dinossauros. Os continentes ficam cada vez mais parecidos com os de hoje."],["A Índia encontra a Ásia","A Índia colide com a Ásia e o Himalaia e o planalto tibetano começam a subir."],["A Antártida congela","Isolada sobre o polo Sul, a Antártida começa a se cobrir de gelo espesso quando as correntes mudam."],["Quase a Terra de hoje","O istmo do Panamá está prestes a se fechar. Os continentes estão quase onde estão hoje."],["Hoje","Os continentes ainda se movem alguns centímetros por ano. Arraste o controle para a direita para ver a previsão."]],"events":[["Erupção das Armadilhas Siberianas","A lava jorrou na Sibéria por centenas de milhares de anos. Os gases de efeito estufa liberados são o principal suspeito da extinção do Permiano (cerca de 90% das espécies marinhas)."],["Os primeiros dinossauros","As camadas de Ischigualasto (Argentina) guardam alguns dos dinossauros mais antigos, como Eoraptor e Herrerasaurus."],["Província Magmática do Atlântico Central (CAMP)","Vulcanismo gigantesco ao longo da fenda que partia a Pangeia. Coincide com a extinção do fim do Triássico, após a qual os dinossauros dominam a terra."],["Erupções Karoo-Ferrar","Lava sobre o sul da África e a Antártida, sinal precoce da ruptura de Gondwana, ligada a um evento anóxico oceânico do Jurássico Inferior."],["O Atlântico central se abre","Começa a expansão do assoalho oceânico entre a América do Norte e a África: nasce o Atlântico atual."],["Archaeopteryx (Solnhofen, Alemanha)","O calcário que revelou o Archaeopteryx, com penas e dentes: prova da evolução dos dinossauros para as aves."],["Erupções Paraná-Etendeka","O mesmo campo de lava sobrevive dividido entre Brasil e Namíbia: vulcanismo pouco antes da abertura do Atlântico Sul."],["Pegadas de dinossauros de Goseong (Coreia)","Nas margens de lagos cretáceos da bacia de Gyeongsang ficaram milhares de pegadas de dinossauros, pterossauros e aves."],["A Índia se separa de Madagascar","A Índia se separa de Madagascar e segue para o norte a mais de 15 cm por ano."],["Dinossauros do Gobi","Nos arenitos do Gobi (Mongólia), um Velociraptor e um Protoceratops foram fossilizados em plena luta."],["Tyrannosaurus (Hell Creek)","A formação Hell Creek, no oeste da América do Norte, preserva os últimos dinossauros: Tyrannosaurus e Triceratops."],["Impacto do asteroide de Chicxulub","Um asteroide de cerca de 10 km atingiu Yucatán e deixou uma cratera de 180 km. Cerca de 75% das espécies, inclusive os dinossauros, se extinguiram."],["Armadilhas do Decão","Erupções cobriram o oeste da Índia com 2 km de lava e, junto com o impacto, teriam agravado a extinção."],["Máximo Térmico do Paleoceno-Eoceno (PETM)","Com o vulcanismo do Atlântico Norte, uma enorme liberação de carbono aqueceu o planeta em 5–8 °C — uma comparação importante para a mudança climática atual."],["Colisão Índia-Ásia","A Índia colide com a Ásia e o Himalaia e o Tibete começam a subir. Ainda empurra cerca de 5 cm por ano."],["Nasce o manto de gelo antártico","Com a queda do CO₂ e a abertura de passagens marítimas ao redor da Antártida, o continente ficou coberto de gelo espesso pela primeira vez."],["Abre-se a passagem de Drake","A América do Sul e a Antártida se separam; uma corrente circumpolar isola e esfria ainda mais a Antártida."],["Mar Vermelho e Rifte da África Oriental","A Arábia se separa da África, o mar Vermelho se abre e um rifte começa a rasgar o leste africano."],["Abre-se o mar do Leste / mar do Japão","A borda da Ásia se parte, forma-se o mar do Leste (mar do Japão) e o arquipélago japonês é empurrado para a posição atual."],["O Mediterrâneo seca","Com Gibraltar fechado, o Mediterrâneo quase secou e deixou espessas camadas de sal (crise de salinidade messiniana). A água do Atlântico voltou há cerca de 5,33 milhões de anos."],["Forma-se o istmo do Panamá","As Américas se unem, separando as correntes do Atlântico e do Pacífico, e os animais passam de um continente a outro."],["Lucy (Australopithecus)","Fóssil de um parente humano primitivo que andava ereto, encontrado em Afar, na Etiópia."],["Começa o vulcanismo de Jeju","Erupções submarinas começam a formar a ilha de Jeju; o monte Halla cresceu com erupções das últimas centenas de milhares de anos."],["Surge o Homo sapiens","Em Jebel Irhoud (Marrocos) foram encontrados fósseis de humanos modernos com cerca de 300 mil anos."]],"fx":["Clarão → cratera de 180 km → radiação térmica até ~1.300 km → onda de choque varrendo os continentes → poeira cobrindo o globo","Área coberta de lava (cerca de 2–7 milhões de km²) e gases vulcânicos se espalhando","Magmatismo em ~10 milhões de km² ao longo da Pangeia que se parte","Campos de lava do sul da África à Antártida","Campos de lava que cobriam a América do Sul e a África antes de se separarem","Cerca de 0,5–1,5 milhão de km² de lava no oeste da Índia","Área do vulcanismo que formou a ilha de Jeju","Aquecimento que se espalhou pelo mundo a partir do vulcanismo do Atlântico Norte","O manto de gelo se espalhando sobre a Antártida","Deformação da crosta que se propaga a partir da zona de colisão"]},"ru":{"name":"Русский","ui":{"title":"Машина времени континентов","loading":"Загружаем континенты…","loadFail":"Не удалось загрузить данные о континентах. Обновите страницу.","pins":"События на карте","close":"Закрыть","goHere":"Перейти к этому моменту","replay":"Повторить эффект","fxPrefix":"Эффект на карте: ","predicted":"Прогноз","future":"Будущее","geoEra":"Геологическое время","settings":"Настройки вида","lang":"Язык","track":"Следить за местом","searchPh":"Поиск города","trackOff":"Не следить","noCity":"Город не найден","cityResults":"Результаты поиска","events":"Метки событий","follow":"Следовать за событиями при воспроизведении","followSub":"Поворачивать к месту события","spin":"Автовращение","coast":"Современные берега","seams":"Границы плит","grid":"Широты и долготы","temp":"Средняя температура","unit":"Единицы","globeCtl":"Управление глобусом","zoomIn":"Приблизить","zoomOut":"Отдалить","home":"Весь глобус","toCity":"К отслеживаемому городу","hint1":"Тяните, чтобы вращать · колесо или щипок для масштаба","hint2":" · Пробел — пуск/пауза · ←→ шаг 1 млн лет · 1·2·3 скорость","timeCtl":"Управление временем","transport":"Воспроизведение","back":"На 1 млн лет назад","fwd":"На 1 млн лет вперёд","play":"Пуск","pause":"Пауза","playTitle":"Пуск / пауза","speed":"Скорость","slow":"Медленно","normal":"Обычно","fast":"Быстро","tempTitle":"Средняя температура поверхности Земли","tempRange":"диапазон 68%","tempNoFuture":"Реконструкции будущих температур нет","present":"Сегодня","sea":"Уровень моря","slider":"Выберите время: прошлое слева, будущее справа","majorEvents":"Главные события","periodGo":"К началу: {p}","lat":"шир.","collisionTitle":"Столкновение: {A} – {B}","collisionText":"Двигаясь по прогнозу Скотезе, континентальная кора регионов «{A}» и «{B}» примерно в это время начинает перекрываться. Настоящие континенты не могут войти друг в друга, поэтому кора утолщается: зона перекрытия поднимается горами и плато, а погружающаяся плита рядом прогибается в низкий бассейн. Когда столкновение заканчивается, эрозия постепенно снижает горы.","futureStartT":"Плиты приходят в движение","futureStartX":"Плиты движутся по прогнозу Скотезе. Перед континентами, наступающими на океан, углубляются желоба, а там, где сталкиваются континенты, поднимаются горы с бассейнами рядом.","foot":"Источники · Рельеф и берега прошлого: {paleodem} (Scotese & Wright 2018, CC BY 4.0), карты через каждые 5 млн лет с интерполяцией. Движение плит и плиты: модель и полигоны плит PALEOMAP ({atlas}, CC BY 4.0), {gws}. Будущее (до +100 млн лет) следует прогнозу Скотезе; изменения рельефа от столкновений и субдукции (горы, эрозия, бассейны, желоба) — оценка по простым правилам. Рельеф будущего морского дна не показан. Средняя температура: PhanDA ({judd}), медианы ярусов с линейной интерполяцией. Города: {ne} (общественное достояние)."},"periods":["Триас","Юра","Мел","Палеоген","Неоген","Четвертичный период"],"presets":["Вымирание динозавров","Столкновение Индии","Сегодня","+50 млн лет","+100 млн лет"],"kinds":{"impact":"Удар","volcano":"Крупное извержение","fossil":"Окаменелости и жизнь","tectonic":"Тектоника","climate":"Климат","human":"Люди","future":"Прогноз","collision":"Столкновение континентов · модель рельефа"},"regions":{"북아메리카":"Северная Америка","남아메리카":"Южная Америка","유럽":"Европа","북아시아":"Северная Азия","인도·중동":"Индия и Ближний Восток","동아시아":"Восточная Азия","아프리카":"Африка","호주":"Австралия","남극":"Антарктида","태평양 섬":"Острова Тихого океана","유라시아":"Евразия"},"era":[["Суперконтинент Пангея","Почти все континенты соединены в один. Незадолго до этого (около 252 млн лет назад) пермское вымирание уничтожило большую часть морской жизни."],["Появление динозавров","Внутренние районы Пангеи были сухой пустыней; примерно тогда появились первые динозавры."],["Пангея начинает раскалываться","Северная Америка и Африка расходятся, начинает раскрываться Центральная Атлантика. Тогда же происходит вымирание конца триаса."],["Лавразия и Гондвана","Суша делится на Лавразию на севере и Гондвану на юге, между ними — океан Тетис."],["Распад Гондваны","Гондвана — Южная Америка, Африка, Индия, Антарктида и Австралия — начинает раскалываться."],["Раскрывается Южная Атлантика","Южная Америка и Африка расходятся, Южная Атлантика расширяется."],["Индия идёт на север","Отделившись от Мадагаскара, Индия быстро движется к Азии."],["Вымирание динозавров","Падение астероида уничтожает около 75% видов, включая динозавров. Континенты всё больше похожи на современные."],["Индия встречает Азию","Индия врезается в Азию, начинают расти Гималаи и Тибетское нагорье."],["Антарктида покрывается льдом","Оказавшись над Южным полюсом, Антарктида при смене течений начинает покрываться толстым льдом."],["Почти современная Земля","Панамский перешеек вот-вот закроется. Континенты почти там же, где сегодня."],["Сегодня","Континенты и сейчас движутся на несколько сантиметров в год. Сдвиньте ползунок вправо, чтобы увидеть прогноз."]],"events":[["Извержение Сибирских траппов","Лава изливалась в Сибири сотни тысяч лет. Выброшенные парниковые газы — главный подозреваемый в пермском вымирании (около 90% морских видов)."],["Первые динозавры","Слои Исчигуаласто (Аргентина) хранят одних из древнейших динозавров — эораптора и герреразавра."],["Центральноатлантическая магматическая провинция (CAMP)","Огромный вулканизм вдоль разлома, раскалывавшего Пангею. Совпадает с вымиранием конца триаса, после которого на суше господствуют динозавры."],["Извержения Кару-Феррар","Лава на юге Африки и в Антарктиде — ранний признак распада Гондваны, связанный с океаническим аноксическим событием ранней юры."],["Раскрывается Центральная Атлантика","Между Северной Америкой и Африкой начинается спрединг, рождается настоящий океан — нынешняя Атлантика."],["Археоптерикс (Зольнхофен, Германия)","Известняк, давший археоптерикса с перьями и зубами, — свидетельство эволюции от динозавров к птицам."],["Извержения Парана-Этендека","Одно и то же лавовое поле сохранилось разделённым между Бразилией и Намибией: вулканизм перед раскрытием Южной Атлантики."],["Следы динозавров Косона (Корея)","На берегах меловых озёр бассейна Кёнсан остались тысячи следов динозавров, птерозавров и птиц."],["Индия отделяется от Мадагаскара","Индия отходит от Мадагаскара и движется на север быстрее 15 см в год."],["Динозавры Гоби","В песчаниках Гоби (Монголия) велоцираптор и протоцератопс окаменели прямо в схватке."],["Тираннозавр (Хелл-Крик)","Формация Хелл-Крик на западе Северной Америки хранит последних динозавров — тираннозавра и трицератопса."],["Падение астероида Чиксулуб","Астероид около 10 км упал на Юкатан и оставил кратер 180 км. Вымерло около 75% видов, включая динозавров."],["Деканские траппы","Извержения покрыли запад Индии двухкилометровым слоем лавы и, вероятно, вместе с ударом усилили вымирание."],["Палеоцен-эоценовый термический максимум (PETM)","Вместе с вулканизмом Северной Атлантики огромный выброс углерода нагрел планету на 5–8 °C — важное сравнение для нынешнего изменения климата."],["Столкновение Индии и Азии","Индия врезается в Азию, начинают расти Гималаи и Тибет. Она и сейчас давит примерно на 5 см в год."],["Рождение антарктического ледника","Когда уровень CO₂ упал и вокруг Антарктиды открылись проливы, континент впервые покрылся толстым льдом."],["Открывается пролив Дрейка","Южная Америка и Антарктида расходятся; циркумполярное течение изолирует и охлаждает Антарктиду."],["Красное море и Восточно-Африканский рифт","Аравия отделяется от Африки, раскрывается Красное море, а рифт начинает разрывать восток Африки."],["Раскрывается Восточное (Японское) море","Край Азии раскалывается, образуется Восточное (Японское) море, а Японские острова сдвигаются на нынешнее место."],["Средиземное море пересыхает","Когда Гибралтар закрылся, Средиземное море почти высохло, оставив толстые слои соли (мессинский кризис солёности). Атлантическая вода вернулась около 5,33 млн лет назад."],["Образуется Панамский перешеек","Америки соединяются, течения Атлантики и Тихого океана разделяются, животные переходят между континентами."],["Люси (австралопитек)","Окаменелость раннего прямоходящего родственника человека, найденная в Афаре (Эфиопия)."],["Начало вулканизма Чеджу","Подводные извержения начинают создавать остров Чеджу; гора Халласан выросла за последние сотни тысяч лет."],["Появление Homo sapiens","В Джебель-Ирхуде (Марокко) найдены окаменелости современных людей возрастом около 300 тысяч лет."]],"fx":["Вспышка → кратер 180 км → тепловое излучение до ~1300 км → ударная волна над континентами → пыль, окутывающая планету","Площадь, покрытая лавой (около 2–7 млн км²), и расходящиеся вулканические газы","Магматизм на ~10 млн км² вдоль раскалывающейся Пангеи","Лавовые поля от юга Африки до Антарктиды","Лавовые поля, покрывавшие Южную Америку и Африку до их разделения","Около 0,5–1,5 млн км² лавы на западе Индии","Область вулканизма, создавшего остров Чеджу","Потепление, распространившееся по миру от вулканизма Северной Атлантики","Ледяной щит, расползающийся по Антарктиде","Деформация коры, расходящаяся от зоны столкновения"]}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+// ---------- geologic periods (ICS chart colours), ages in Ma ----------
+const PERIODS = [
+  { name: '트라이아스기', en: 'Triassic', from: 251.9, to: 201.4, color: '#812B92' },
+  { name: '쥐라기', en: 'Jurassic', from: 201.4, to: 145.0, color: '#34B2C9' },
+  { name: '백악기', en: 'Cretaceous', from: 145.0, to: 66.0, color: '#7FC64E' },
+  { name: '팔레오기', en: 'Paleogene', from: 66.0, to: 23.03, color: '#FD9A52' },
+  { name: '네오기', en: 'Neogene', from: 23.03, to: 2.58, color: '#FFE619' },
+  { name: '제4기', en: 'Quaternary', from: 2.58, to: 0, color: '#F9F97F' },
+];
+// age > 0 = past, age < 0 = future
+// ---------- i18n ----------
+const I18N = JSON.parse(document.getElementById('i18n-data').textContent);
+const LANGS = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant', 'es', 'fr', 'de', 'pt', 'ru'];
+const LOCALE = { ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-BR', ru: 'ru-RU' };
+const CITYKEY = { ko: 'ko', en: 'en', ja: 'ja', 'zh-Hans': 'zh', 'zh-Hant': 'zht', es: 'es', fr: 'fr', de: 'de', pt: 'pt', ru: 'ru' };
+function pickLang() {
+  try { const v = localStorage.getItem('lang'); if (LANGS.includes(v)) return v; } catch (_) {}
+  for (const l of (navigator.languages || [navigator.language || 'en'])) {
+    const x = String(l).toLowerCase();
+    if (x.startsWith('zh')) return /tw|hk|mo|hant/.test(x) ? 'zh-Hant' : 'zh-Hans';
+    const b = x.slice(0, 2); if (LANGS.includes(b)) return b;
+  }
+  return 'en';
+}
+let LANG = pickLang();
+const D = () => I18N[LANG] || I18N.ko;
+function t(k, vars) {
+  let s = D().ui[k] ?? I18N.ko.ui[k] ?? k;
+  if (vars) for (const v in vars) s = s.split('{' + v + '}').join(vars[v]);
+  return s;
+}
+const periodName = i => D().periods[i] ?? PERIODS[i].name;
+const regionName = n => D().regions[n] ?? n;
+const kindName = k => D().kinds[k] ?? KINDS[k].name;
+function evTitle(e) {
+  if (e.colA) return t('collisionTitle', { A: regionName(e.colA), B: regionName(e.colB) });
+  return e.i != null && D().events[e.i] ? D().events[e.i][0] : e.title;
+}
+function evText(e) {
+  if (e.colA) {
+    const A = regionName(e.colA);
+    return t('collisionText', { A, B: regionName(e.colB), wa: LANG === 'ko' ? josa(A, '와', '과').slice(A.length) : '' });
+  }
+  return e.i != null && D().events[e.i] ? D().events[e.i][1] : e.text;
+}
+const fxNote = fx => (fx.i != null && D().fx[fx.i]) || fx.note;
+function cityName(c) { return c ? (c.names ? (c.names[CITYKEY[LANG]] || c.names.en || c.names.ko) : c.name) : ''; }
+
+const EVENTS = [
+  { age: 250, title: '초대륙 판게아', text: '거의 모든 대륙이 하나로 붙어 있습니다. 바로 직전(약 2억 5200만 년 전) 페름기 대멸종으로 바다 생물의 대부분이 사라졌습니다.' },
+  { age: 230, title: '공룡의 등장', text: '판게아 안쪽은 건조한 사막이었고, 이 무렵 최초의 공룡이 나타났습니다.' },
+  { age: 200, title: '판게아가 갈라지기 시작', text: '북아메리카와 아프리카 사이가 벌어지며 중앙 대서양이 열리기 시작합니다. 트라이아스기 말 대멸종도 이 무렵입니다.' },
+  { age: 175, title: '로라시아와 곤드와나', text: '북쪽의 로라시아와 남쪽의 곤드와나로 크게 나뉘고, 그 사이에 테티스해가 펼쳐집니다.' },
+  { age: 140, title: '곤드와나의 분열', text: '남아메리카·아프리카·인도·남극·호주로 이루어진 곤드와나가 조각나기 시작합니다.' },
+  { age: 110, title: '남대서양이 열림', text: '남아메리카와 아프리카가 떨어지며 남대서양이 넓어집니다.' },
+  { age: 85, title: '인도가 북쪽으로', text: '마다가스카르에서 떨어져 나온 인도가 빠른 속도로 아시아를 향해 이동합니다.' },
+  { age: 66, title: '공룡 대멸종', text: '소행성 충돌로 공룡을 포함한 생물의 약 75%가 멸종합니다. 대륙 배치가 지금과 조금씩 비슷해집니다.' },
+  { age: 50, title: '인도와 아시아의 충돌', text: '인도가 아시아에 부딪히며 히말라야 산맥과 티베트 고원이 솟아오르기 시작합니다.' },
+  { age: 34, title: '남극 빙상의 형성', text: '남극이 남극점 위에 고립되고 주변 해류가 바뀌며 두꺼운 얼음으로 덮이기 시작합니다.' },
+  { age: 5, title: '오늘날과 거의 같은 지구', text: '파나마 지협이 닫히기 직전입니다. 대륙 배치는 현재와 거의 같습니다.' },
+  { age: 0, title: '현재', text: '대륙은 지금도 1년에 몇 cm씩 움직이고 있습니다. 슬라이더를 오른쪽으로 옮기면 미래 예측을 볼 수 있습니다.' },
+  { age: -30, title: '지중해가 좁아짐', text: '아프리카가 계속 북쪽으로 밀고 올라가 유럽과 가까워집니다.' },
+  { age: -60, title: '호주가 아시아와 충돌', text: '북상하던 호주가 동남아시아에 부딪히고, 지중해는 거의 닫혀 산맥이 생깁니다.' },
+  { age: -120, title: '대서양이 닫히기 시작', text: '대서양 가장자리에서 섭입이 시작되어, 넓어지던 대서양이 다시 좁아집니다.' },
+  { age: -190, title: '대륙들이 다시 모임', text: '아메리카가 아프리카·유럽 쪽으로 돌아오고 남극도 북쪽으로 올라옵니다.' },
+  { age: -250, title: '판게아 프록시마', text: '대서양이 사라지고 대륙이 다시 하나로 합쳐진 미래의 초대륙입니다. 가운데에 바다가 갇힌 고리 모양으로 예측됩니다.' },
+];
+const FUT_MAX = 100; // the future is shown up to +100 Myr
+EVENTS.forEach((e, i) => { if (e.age >= 0) e.i = i; });
+const PRESETS = [
+  { label: '공룡 멸종', age: 66 },
+  { label: '인도 충돌', age: 50 }, { label: '현재', age: 0 }, { label: '+5천만 년', age: -50 },
+  { label: '+1억 년', age: -100 },
+];
+// global mean surface temperature, PhanDA (Judd et al. 2024): [age Ma, 16th, 50th, 84th percentile °C]
+const GMST = [[0.006,13.6,14.0,14.3],[0.07,10.9,11.4,12.1],[0.452,11.1,11.8,12.7],[1.287,12.2,12.8,13.5],[2.19,13.4,14.2,15.7],[3.09,14.9,15.6,16.7],[4.465,15.3,16.3,17.6],[6.29,16.1,16.9,17.8],[9.44,19.5,20.6,21.5],[12.725,21.7,23.6,25.0],[14.905,21.6,23.8,25.9],[18.22,22.2,24.1,25.5],[21.745,20.5,22.1,23.5],[25.165,22.5,23.4,24.3],[30.595,22.3,23.4,24.6],[35.805,25.2,26.1,27.3],[39.37,26.7,28.0,29.4],[44.55,25.4,27.0,31.5],[52.035,30.8,32.3,35.9],[55.85,31.6,33.6,36.2],[57.62,24.9,25.6,27.1],[62.62,26.9,28.8,30.9],[69.085,22.7,24.5,25.9],[77.91,26.1,28.1,29.9],[84.675,29.1,31.4,35.8],[87.545,30.4,32.3,38.1],[91.645,33.0,35.6,40.9],[97.2,30.6,34.1,39.2],[106.85,24.3,26.0,28.6],[117.3,26.7,32.0,36.7],[123.95,25.1,30.5,33.7],[129.55,22.6,27.3,30.5],[135.15,24.7,28.2,33.0],[140.4,23.4,27.0,31.1],[146.17,24.9,27.3,29.5],[152.01,22.3,24.5,27.6],[158.155,22.2,23.9,27.9],[163.41,18.4,20.1,22.3],[166.73,14.4,17.8,19.5],[169.535,18.2,21.4,23.1],[172.8,20.0,23.2,26.1],[179.45,24.7,26.4,28.3],[188.55,22.0,24.1,28.2],[197.13,22.8,25.1,28.2],[203.55,19.8,22.3,24.5],[216.52,22.3,25.0,27.5],[232.15,20.3,23.4,27.1],[239.23,12.5,19.2,23.1],[245.67,22.6,25.8,29.3],[250.89,26.0,28.5,31.0],[253.07,16.0,18.0,19.7],[256.895,20.5,22.2,23.7]];
+let CITIES = [
+  { name: '서울', lon: 126.98, lat: 37.57, pid: 604 }, { name: '도쿄', lon: 139.69, lat: 35.68, pid: 610 },
+  { name: '뉴욕', lon: -74.0, lat: 40.71, pid: 101 }, { name: '런던', lon: -0.13, lat: 51.51, pid: 315 },
+  { name: '파리', lon: 2.35, lat: 48.86, pid: 305 }, { name: '카이로', lon: 31.24, lat: 30.04, pid: 715 },
+  { name: '뭄바이', lon: 72.88, lat: 19.08, pid: 501 }, { name: '시드니', lon: 151.21, lat: -33.87, pid: 801 },
+  { name: '리우데자네이루', lon: -43.17, lat: -22.91, pid: 201 }, { name: '케이프타운', lon: 18.42, lat: -33.92, pid: 701 },
+];
+// located events: present-day lon/lat on the plate that carries the site (PALEOMAP plate id),
+// so each pin rides with its continent. age in Ma (negative = future), span = how long the pin stays up
+// map effects for major events: type 1 impact, 2 flood-basalt eruption, 3 ice sheet, 4 global heat, 5 collision ripple
+const FX = {
+  '칙술루브 소행성 충돌': { type: 1, r: 12, note: '섬광 → 지름 180km 크레이터 → 반경 약 1300km 열복사 → 대륙을 휩쓰는 충격파 → 전 지구로 퍼지는 먼지구름' },
+  '시베리아 트랩 분출': { type: 2, r: 11, note: '용암이 덮은 범위(약 200만~700만 km²)와 퍼져 나가는 화산 가스' },
+  '중앙대서양 마그마 지대(CAMP)': { type: 2, r: 14, note: '갈라지는 판게아를 따라 약 1000만 km²에 걸친 마그마 활동' },
+  '카루-페라 화산': { type: 2, r: 8, note: '남아프리카~남극에 걸친 용암 지대' },
+  '파라나-에텐데카 화산': { type: 2, r: 8, note: '남아메리카와 아프리카로 나뉘기 전 함께 덮인 용암 지대' },
+  '데칸 트랩': { type: 2, r: 7, note: '인도 서부를 덮은 약 50만~150만 km²의 용암' },
+  '제주도 화산 활동 시작': { type: 2, r: 1.2, note: '제주도를 만든 화산 활동 범위' },
+  '팔레오세-에오세 극열기(PETM)': { type: 4, r: 70, note: '북대서양 화산 지대에서 시작해 전 지구로 퍼진 온난화' },
+  '남극 빙상의 탄생': { type: 3, r: 24, note: '남극 대륙을 덮어 가는 빙상' },
+  '인도-아시아 충돌': { type: 5, r: 9, note: '충돌대에서 퍼져 나가는 지각 변형' },
+};
+const KINDS = {
+  impact: { name: '충돌', color: '#ff5a4f' }, volcano: { name: '대규모 화산', color: '#ff9d3c' },
+  fossil: { name: '화석·생물', color: '#ffe066' }, tectonic: { name: '지각 변동', color: '#7cc4ff' },
+  climate: { name: '기후', color: '#b9f3ff' }, human: { name: '인류', color: '#d0b3ff' },
+  future: { name: '예측', color: '#c9d2e3' },
+  collision: { name: '대륙 충돌 · 지형 계산', color: '#ff7eb0' },
+};
+let GEO_EVENTS = [
+  { age: 252, span: 14, lon: 90, lat: 65, pid: 401, kind: 'volcano', title: '시베리아 트랩 분출', text: '시베리아에서 수십만 년 동안 용암이 쏟아져 나왔습니다. 이때 나온 온실가스가 페름기 대멸종(바다 생물 약 90% 멸종)의 주된 원인으로 꼽힙니다.' },
+  { age: 231, span: 12, lon: -67.9, lat: -30.0, pid: 291, kind: 'fossil', title: '최초의 공룡들', text: '아르헨티나 이스치구알라스토 지층에서 에오랍토르, 헤레라사우루스 같은 가장 오래된 공룡 화석이 나왔습니다.' },
+  { age: 201, span: 12, lon: -7.5, lat: 31.5, pid: 707, kind: 'volcano', title: '중앙대서양 마그마 지대(CAMP)', text: '판게아가 갈라지던 틈을 따라 대규모 화산 활동이 일어났습니다. 트라이아스기 말 대멸종과 같은 시기로, 이후 공룡이 육지를 차지합니다.' },
+  { age: 183, span: 10, lon: 28.5, lat: -29.5, pid: 701, kind: 'volcano', title: '카루-페라 화산', text: '남아프리카와 남극에 걸친 용암 분출입니다. 곤드와나가 쪼개지기 시작한 신호로 보며, 쥐라기 초 해양 무산소 사건과 연결됩니다.' },
+  { age: 175, span: 10, lon: -72, lat: 39, pid: 101, kind: 'tectonic', title: '중앙 대서양이 열림', text: '북아메리카와 아프리카 사이에 해저 확장이 시작되어 진짜 바다가 생깁니다. 지금의 대서양이 이때 태어났습니다.' },
+  { age: 150, span: 10, lon: 11.0, lat: 48.9, pid: 305, kind: 'fossil', title: '시조새 (졸른호펜, 독일)', text: '깃털과 이빨을 함께 가진 시조새 화석이 나온 석회암 지대입니다. 공룡에서 새로 이어지는 진화의 증거입니다.' },
+  { age: 132, span: 10, lon: -51, lat: -25, pid: 201, kind: 'volcano', title: '파라나-에텐데카 화산', text: '브라질과 나미비아에 같은 용암 지대가 나뉘어 남아 있습니다. 남대서양이 열리기 직전의 화산 활동입니다.' },
+  { age: 105, span: 10, lon: 128.3, lat: 34.95, pid: 611, kind: 'fossil', title: '경남 고성 공룡 발자국', text: '백악기 호숫가였던 경상분지에 공룡과 익룡, 새의 발자국 수천 개가 남았습니다. 세계적인 공룡 발자국 산지입니다.' },
+  { age: 88, span: 8, lon: 46, lat: -20, pid: 702, kind: 'tectonic', title: '인도가 마다가스카르에서 분리', text: '인도가 마다가스카르와 떨어져 1년에 15cm가 넘는 빠른 속도로 북쪽으로 이동하기 시작합니다.' },
+  { age: 75, span: 7, lon: 103.7, lat: 44.1, pid: 628, kind: 'fossil', title: '고비 사막의 공룡들', text: '몽골 고비의 사암층에서 벨로키랍토르와 프로토케라톱스가 싸우던 모습 그대로 화석이 되었습니다.' },
+  { age: 67, span: 5, lon: -105, lat: 47.5, pid: 101, kind: 'fossil', title: '티라노사우루스 (헬크릭층)', text: '북아메리카 서부의 헬크릭층에는 백악기 마지막 공룡인 티라노사우루스와 트리케라톱스가 남아 있습니다.' },
+  { age: 66, span: 7, lon: -89.5, lat: 21.4, pid: 205, kind: 'impact', title: '칙술루브 소행성 충돌', text: '지름 약 10km 소행성이 유카탄반도에 떨어져 지름 180km 크레이터를 남겼습니다. 공룡을 포함한 생물 약 75%가 멸종합니다.' },
+  { age: 66, span: 7, lon: 74, lat: 19, pid: 501, kind: 'volcano', title: '데칸 트랩', text: '인도 서부를 2km 두께의 용암으로 덮은 분출입니다. 소행성 충돌과 함께 대멸종을 키웠다고 봅니다.' },
+  { age: 56, span: 6, lon: -25, lat: 68, pid: 102, kind: 'climate', title: '팔레오세-에오세 극열기(PETM)', text: '북대서양 화산 활동과 함께 탄소가 대량으로 나와 지구 기온이 5~8°C 올랐습니다. 오늘날 기후 변화를 이해하는 비교 사례입니다.' },
+  { age: 50, span: 8, lon: 85, lat: 29, pid: 501, kind: 'tectonic', title: '인도-아시아 충돌', text: '인도가 아시아에 부딪히며 히말라야와 티베트 고원이 솟기 시작했습니다. 지금도 1년에 약 5cm씩 밀고 있습니다.' },
+  { age: 34, span: 6, lon: 0, lat: -80, pid: 802, kind: 'climate', title: '남극 빙상의 탄생', text: '이산화탄소가 줄고 남극 주변 바닷길이 열리면서 남극 대륙이 처음으로 두꺼운 얼음에 덮였습니다.' },
+  { age: 30, span: 5, lon: -68, lat: -54, pid: 291, kind: 'tectonic', title: '드레이크 해협이 열림', text: '남아메리카와 남극이 떨어지면서 남극을 한 바퀴 도는 해류가 생겨 남극을 더 차갑게 고립시켰습니다.' },
+  { age: 25, span: 6, lon: 41, lat: 12, pid: 709, kind: 'tectonic', title: '홍해와 동아프리카 열곡', text: '아라비아가 아프리카에서 떨어져 나가며 홍해가 열리고, 아프리카 동쪽이 찢어지는 열곡이 생겼습니다.' },
+  { age: 17, span: 5, lon: 138, lat: 37, pid: 610, kind: 'tectonic', title: '동해가 열리고 일본이 떨어져 나감', text: '아시아 대륙 가장자리가 갈라지며 동해가 생기고, 일본 열도가 지금 위치로 밀려났습니다.' },
+  { age: 6, span: 3, lon: 14, lat: 37.5, pid: 307, kind: 'climate', title: '지중해가 말라붙음', text: '지브롤터가 막히면서 지중해가 거의 말라 두꺼운 소금층이 쌓였습니다(메시나절 염분 위기). 약 533만 년 전 대서양 물이 다시 들어옵니다.' },
+  { age: 3, span: 2, lon: -80, lat: 9, pid: 230, kind: 'tectonic', title: '파나마 지협 형성', text: '남북 아메리카가 이어지며 대서양과 태평양의 해류가 갈라졌고, 동물들이 두 대륙을 오갔습니다.' },
+  { age: 3.2, span: 1.6, lon: 40.5, lat: 11.1, pid: 716, kind: 'human', title: '루시 (오스트랄로피테쿠스)', text: '에티오피아 아파르에서 발견된 두 발로 걸은 초기 인류 화석입니다.' },
+  { age: 1.8, span: 1.4, lon: 126.55, lat: 33.38, pid: 611, kind: 'volcano', title: '제주도 화산 활동 시작', text: '해저 화산 분출로 제주도가 만들어지기 시작했습니다. 한라산은 수십만 년 전 이후의 분출로 높아졌습니다.' },
+  { age: 0.3, span: 1.2, lon: -8.87, lat: 31.86, pid: 707, kind: 'human', title: '호모 사피엔스 등장', text: '모로코 제벨 이르후드에서 약 30만 년 전 현생 인류 화석이 나왔습니다.' },
+  { age: -10, span: 6, lon: 37, lat: 0, pid: 709, kind: 'future', only: 'scotese', title: '동아프리카에 새 바다', text: '동아프리카 열곡이 계속 벌어져 바닷물이 들어오고, 소말리아 쪽 땅덩어리가 떨어져 나갈 것으로 예상됩니다.' },
+  { age: -50, span: 12, lon: 18, lat: 35, pid: 715, kind: 'future', only: 'scotese', title: '지중해가 닫힘', text: '아프리카가 유럽과 부딪혀 지중해가 사라지고, 그 자리에 히말라야 같은 산맥이 솟을 것으로 예측됩니다.' },
+  { age: -60, span: 12, lon: 132, lat: -12, pid: 801, kind: 'future', only: 'scotese', title: '호주가 아시아와 충돌', text: '북쪽으로 움직이는 호주가 인도네시아와 동남아시아에 부딪힐 것으로 예측됩니다.' },
+  { age: -150, span: 20, lon: -35, lat: -7, pid: 201, kind: 'future', only: 'scotese', title: '대서양이 좁아짐', text: '대서양 가장자리에 섭입대가 생겨, 넓어지던 대서양이 줄어들기 시작합니다.' },
+  { age: -250, span: 25, lon: 20, lat: 0, pid: 701, kind: 'future', only: 'scotese', title: '판게아 프록시마', text: '대륙들이 다시 하나로 합쳐진 미래의 초대륙입니다(Scotese의 예측). 아프리카가 그 가운데에 놓입니다.' },
+];
+const GROUPS = {
+  na: { name: '북아메리카', color: '#e07a5f' }, sa: { name: '남아메리카', color: '#f2cc8f' },
+  eu: { name: '유럽', color: '#81b29a' }, nas: { name: '북아시아', color: '#9c89b8' },
+  in: { name: '인도·중동', color: '#f4a261' }, eas: { name: '동아시아', color: '#e5989b' },
+  af: { name: '아프리카', color: '#d4a373' }, oc: { name: '호주', color: '#e9c46a' },
+  an: { name: '남극', color: '#dfe7f2' }, pa: { name: '태평양 섬', color: '#8ecae6' },
+};
+function groupOf(pid) {
+  if (pid === 801) return 'oc';
+  const h = Math.floor(pid / 100);
+  return ({ 1: 'na', 2: 'sa', 3: 'eu', 4: 'nas', 5: 'in', 6: 'eas', 7: 'af', 8: 'an', 9: 'pa' })[h] || 'pa';
+}
+// hypsometric tint, elevation in metres
+const HYPSO = [
+  [-6000, '#071d3a'], [-4500, '#0b2c55'], [-3000, '#123f72'], [-1500, '#1d5a90'],
+  [-200, '#3a86b8'], [-1, '#6cb6d6'], [0, '#5d8f52'], [250, '#7aa35a'], [700, '#a9ad6c'],
+  [1300, '#bf9f68'], [2200, '#9c7653'], [3200, '#8a7468'], [4200, '#d6d0ca'], [5500, '#ffffff'],
+];
+const ELUT = (() => { // colour lookup every 10 m from -6000 to 6200
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const n = 1221, out = new Uint8ClampedArray(n * 3);
+  for (let i = 0; i < n; i++) {
+    const e = -6000 + i * 10;
+    let k = 0; while (k < HYPSO.length - 2 && e > HYPSO[k + 1][0]) k++;
+    const [e0, c0] = HYPSO[k], [e1, c1] = HYPSO[k + 1];
+    const f = Math.max(0, Math.min(1, (e - e0) / (e1 - e0))), a = hex(c0), b = hex(c1);
+    for (let j = 0; j < 3; j++) out[i * 3 + j] = a[j] + (b[j] - a[j]) * f;
+  }
+  return out;
+})();
+const decodeElev = v => v >= 100 ? (v - 100) * 40 + 20 : (v - 99) * 60;
+
+// ---------- quaternion rotation model (GPlates convention) ----------
+const D2R = Math.PI / 180;
+function qmul(a, b) {
+  return [a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3], a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],
+          a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1], a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0]];
+}
+function qPole(lat, lon, ang) {
+  const la = lat*D2R, lo = lon*D2R, h = ang*D2R/2, s = Math.sin(h);
+  return [Math.cos(h), s*Math.cos(la)*Math.cos(lo), s*Math.cos(la)*Math.sin(lo), s*Math.sin(la)];
+}
+function slerp(a, b, f) {
+  let d = a[0]*b[0]+a[1]*b[1]+a[2]*b[2]+a[3]*b[3];
+  if (d < 0) { b = b.map(x => -x); d = -d; }
+  let r;
+  if (d > 0.9995) r = a.map((x, i) => x + f*(b[i]-x));
+  else { const th = Math.acos(d), s = Math.sin(th), w1 = Math.sin((1-f)*th)/s, w2 = Math.sin(f*th)/s; r = a.map((x, i) => w1*x + w2*b[i]); }
+  const n = Math.hypot(...r); return r.map(x => x/n);
+}
+let ROT = {};
+function relRot(pid, t) {
+  const segs = ROT[pid]; if (!segs) return null;
+  for (const [fp, rows] of segs) {
+    if (t < rows[0][0] || t > rows[rows.length-1][0]) continue;
+    for (let i = 0; i < rows.length - 1; i++) {
+      const a = rows[i], b = rows[i+1];
+      if (a[0] <= t && t <= b[0]) {
+        const f = b[0] === a[0] ? 0 : (t - a[0]) / (b[0] - a[0]);
+        return [fp, slerp(qPole(a[1], a[2], a[3]), qPole(b[1], b[2], b[3]), f)];
+      }
+    }
+    const l = rows[rows.length-1]; return [fp, qPole(l[1], l[2], l[3])];
+  }
+  return null;
+}
+let cache = new Map();
+// future mode: 'sim' = rule-based collision simulation (sim.json), 'scotese' = PALEOMAP rotations as published
+let futureMode = 'sim', SIM = null;
+function decodeSim(j) { // sim.json holds terrain-change data only; plate motion stays Scotese
+  const vec = (lon, lat) => { const la = lat * D2R, lo = lon * D2R; return [Math.cos(la)*Math.cos(lo), Math.cos(la)*Math.sin(lo), Math.sin(la)]; };
+  return {
+    q: null, raw: j,
+    zone: (j.zone || []).map(([lon, lat, pid, t0, t1]) => [...vec(lon, lat), pid, t0, t1]),
+    fore: (j.fore || []).map(([lon, lat, pid, t0, t1]) => [...vec(lon, lat), pid, t0, t1]),
+    trench: (j.trench || []).map(([lon, lat, pid, bits]) => [...vec(lon, lat), pid, bits]),
+  };
+}
+function simQ(f, i) { const o = (f * SIM.P + i) * 4, q = SIM.q; return [q[o] / 32767, q[o+1] / 32767, q[o+2] / 32767, q[o+3] / 32767]; }
+function simRot(pid, t) {
+  if (!SIM || !SIM.q) return null;
+  const i = SIM.index.get(pid); if (i === undefined) return null;
+  const x = Math.min(SIM.n - 1, -t / SIM.step), f0 = Math.floor(x), f1 = Math.min(SIM.n - 1, f0 + 1);
+  const a = simQ(f0, i); if (f1 === f0) return a;
+  const r = slerp(a, simQ(f1, i), x - f0), n = Math.hypot(...r); return r.map(v => v / n);
+}
+let FUT_PROXY = {}; // plates PALEOMAP leaves unmoved in the future -> neighbour they travel with
+function absRot(pid, t, depth = 0) {
+  if (pid === 0 || depth > 40) return [1, 0, 0, 0];
+  if (cache.has(pid)) return cache.get(pid);
+  if (t < 0 && futureMode === 'sim' && SIM) { const q = simRot(pid, t); if (q) { cache.set(pid, q); return q; } }
+  if (t < 0 && FUT_PROXY[pid]) { const q = absRot(FUT_PROXY[pid], t, depth + 1); cache.set(pid, q); return q; }
+  const r = relRot(pid, t);
+  let q = null;
+  if (r) { const qa = absRot(r[0], t, depth + 1); if (qa) q = qmul(qa, r[1]); }
+  cache.set(pid, q); return q;
+}
+function qMatrix(q) { // 3x3 rotation matrix from unit quaternion
+  const [w, x, y, z] = q;
+  return [1-2*(y*y+z*z), 2*(x*y-w*z), 2*(x*z+w*y), 2*(x*y+w*z), 1-2*(x*x+z*z), 2*(y*z-w*x), 2*(x*z-w*y), 2*(y*z+w*x), 1-2*(x*x+y*y)];
+}
+
+// ---------- data ----------
+let polys = [], unitVecs = [], polyPid = [], polyGroup = [], polyCoast = [];
+let plateVecs = [], platePid = [], plateCont = [], plateEdge = []; // PALEOMAP static plate polygons (the real plate pieces)
+let age = 0, mode = 'terrain', cityIdx = 0, playing = false, tempUnit = 'C';
+// PaleoDEM: atlas of 1° grids (360 x 181 each), one per 5 Myr from 0 to 250 Ma
+let DEM = null; // { ages, w, h, atlas: Uint8Array, plateIdx: Uint8Array, plates: [] }
+
+// ---------- texture canvas ----------
+// 4096 px texture on larger screens (≈0.09°/px), 2048 on phones
+const TW = Math.min(screen.width, screen.height) < 700 ? 2048 : 4096, TH = TW / 2, LS = TW / 2048;
+const tex = document.createElement('canvas'); tex.width = TW; tex.height = TH;
+const g = tex.getContext('2d');
+const PW = 360, PH = 181;             // 1° grids (always available)
+let presentCells = null;               // present-day 1° cells that ride on plates into the future
+let presentHD = null;                  // same at 0.25°
+
+const gridCvs = new Map();
+function gridCanvas(w, h) {
+  let o = gridCvs.get(w);
+  if (!o) { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const ctx = cv.getContext('2d'); o = { cv, ctx, img: ctx.createImageData(w, h) }; gridCvs.set(w, o); }
+  return o;
+}
+function shadeGrid(elev, w, h) { // simple NW-lit hillshade factor per cell (scaled to the grid spacing)
+  const s = new Float32Array(w * h), res = 360 / w, kk = 1 / res;
+  for (let r = 0; r < h; r++) {
+    const lat = 90 - r * res, kx = 1 / Math.max(0.2, Math.cos(lat * D2R));
+    for (let c = 0; c < w; c++) {
+      const e = elev[r * w + c];
+      const ex = elev[r * w + (c + 1) % w] - elev[r * w + (c + w - 1) % w];
+      const ey = elev[Math.min(h - 1, r + 1) * w + c] - elev[Math.max(0, r - 1) * w + c];
+      const k = (e > 0 ? 0.00018 : 0.00005) * Math.min(kk, 2.6);
+      s[r * w + c] = Math.max(0.55, Math.min(1.35, 1 - k * (ex * kx) * 0.7 + k * ey * 0.7));
+    }
+  }
+  return s;
+}
+function paintGrid(e, w, h) { // colour + shade an elevation grid and stretch it over the globe texture
+  const { cv, ctx, img } = gridCanvas(w, h), n = w * h, sh = shadeGrid(e, w, h), d = img.data;
+  for (let j = 0; j < n; j++) {
+    let li = Math.round((e[j] + 6000) / 10); li = li < 0 ? 0 : li > 1220 ? 1220 : li;
+    const s = sh[j];
+    d[j * 4] = ELUT[li * 3] * s; d[j * 4 + 1] = ELUT[li * 3 + 1] * s; d[j * 4 + 2] = ELUT[li * 3 + 2] * s; d[j * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  const cw = TW / w, ch = TH / (h - 1);
+  for (const off of [0, TW]) g.drawImage(cv, -cw / 2 + off, -ch / 2, w * cw, h * ch);
+}
+function paintElev(e) { paintGrid(e, PW, PH); }
+function frameElev(i) {
+  const n = PW * PH, a = DEM.atlas, out = new Float32Array(n), o = i * n;
+  for (let j = 0; j < n; j++) out[j] = decodeElev(a[o + j]);
+  return out;
+}
+const frameCache = new Map();
+function getFrame(i) { if (!frameCache.has(i)) frameCache.set(i, frameElev(i)); return frameCache.get(i); }
+
+// ---------- 0.25° frames, fetched on demand ----------
+let HD = null;                 // { w, h, ages, plates, pidx: Uint16Array }
+const hdCache = new Map();     // frame index -> Float32Array | 'loading'
+let scrubbing = false, scrubTimer = 0;
+const wantHD = () => HD && !playing && !scrubbing;
+function hdGet(i) {
+  if (!HD) return null;
+  const v = hdCache.get(i);
+  if (v instanceof Float32Array) return v;
+  if (!v) {
+    hdCache.set(i, 'loading');
+    loadGray(`hd/dem_${String(HD.ages[i]).padStart(3, '0')}.png`).then(u8 => {
+      const f = new Float32Array(u8.length);
+      for (let j = 0; j < u8.length; j++) f[j] = decodeElev(u8[j]);
+      hdCache.set(i, f);
+      // keep at most 14 frames in memory, dropping the ones farthest from now
+      const ready = [...hdCache.entries()].filter(([, x]) => x instanceof Float32Array).map(([k]) => k);
+      if (ready.length > 14) {
+        const now = currentFrameIndex();
+        ready.sort((a, b) => Math.abs(b - now) - Math.abs(a - now)).slice(0, ready.length - 14).forEach(k => { if (k !== 0) hdCache.delete(k); });
+      }
+      if (wantHD()) drawTexture();
+    }).catch(() => hdCache.delete(i));
+  }
+  return null;
+}
+function currentFrameIndex() {
+  const ages = DEM.ages; let i = 0;
+  while (i < ages.length - 2 && Math.max(0, age) > ages[i + 1]) i++;
+  return i;
+}
+
+function paintPast() {
+  const ages = DEM.ages, i = currentFrameIndex();
+  const f = Math.max(0, Math.min(1, (age - ages[i]) / (ages[i + 1] - ages[i])));
+  if (wantHD()) {
+    const A = hdGet(i), B = f > 0.001 ? hdGet(i + 1) : A;
+    if (A && B) {
+      const n = A.length, e = new Float32Array(n);
+      for (let j = 0; j < n; j++) e[j] = A[j] + (B[j] - A[j]) * f;
+      paintGrid(e, HD.w, HD.h); return;
+    }
+  }
+  const A = getFrame(i), B = getFrame(i + 1), n = PW * PH, e = new Float32Array(n);
+  for (let j = 0; j < n; j++) e[j] = A[j] + (B[j] - A[j]) * f;
+  paintGrid(e, PW, PH);
+}
+
+function buildPresentCells() {
+  const e = getFrame(0), cells = [];
+  for (let r = 0; r < PH; r++) for (let c = 0; c < PW; c++) {
+    const j = r * PW + c, p = DEM.plateIdx[j];
+    if (!p || e[j] < -400) continue; // land and continental shelf only
+    const la = (90 - r) * D2R, lo = (c - 180) * D2R;
+    cells.push({ e: e[j], pid: DEM.plates[p - 1], x: Math.cos(la)*Math.cos(lo), y: Math.cos(la)*Math.sin(lo), z: Math.sin(la) });
+  }
+  presentCells = cells;
+}
+function buildPresentHD() {
+  const E = hdGet(0); if (!E || !HD.pidx) return false;
+  const { w, h } = HD, res = 360 / w, idx = [];
+  for (let j = 0; j < w * h; j++) if (HD.pidx[j] && E[j] > -400) idx.push(j);
+  const n = idx.length, X = new Float32Array(n), Y = new Float32Array(n), Z = new Float32Array(n), EL = new Float32Array(n), P = new Int32Array(n);
+  idx.forEach((j, k) => {
+    const r = Math.floor(j / w), c = j % w, la = (90 - r * res) * D2R, lo = (c * res - 180) * D2R;
+    X[k] = Math.cos(la) * Math.cos(lo); Y[k] = Math.cos(la) * Math.sin(lo); Z[k] = Math.sin(la); EL[k] = E[j]; P[k] = HD.plates[HD.pidx[j] - 1];
+  });
+  presentHD = { n, X, Y, Z, EL, P };
+  return true;
+}
+function blur3(e, w, h) { // 3x3 weighted blur, wrapping in longitude
+  const b = new Float32Array(w * h);
+  for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
+    let s = 0, wt = 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      const rr = r + dr; if (rr < 0 || rr >= h) continue;
+      for (let dc = -1; dc <= 1; dc++) {
+        const k = dr === 0 && dc === 0 ? 4 : (dr === 0 || dc === 0 ? 2 : 1);
+        s += e[rr * w + (c + dc + w) % w] * k; wt += k;
+      }
+    }
+    b[r * w + c] = s / wt;
+  }
+  return b;
+}
+function drawTrench(cells) { // trench axis drawn crisply so it reads at globe scale
+  if (!cells.length) return;
+  g.save(); g.fillStyle = 'rgba(2, 8, 24, 0.9)';
+  const cw = TW / 360, ch = TH / 180;
+  for (const k of cells) {
+    const r = Math.floor(k / PW), c = k % PW;
+    g.beginPath(); g.ellipse(c * cw, r * ch, cw * 0.5, ch * 0.38, 0, 0, Math.PI * 2); g.fill();
+  }
+  g.restore();
+}
+function paintFuture() {
+  if (!presentCells) buildPresentCells();
+  const low = computeFutureLow();
+  if (wantHD() && (presentHD || buildPresentHD())) {
+    // 0.25°: rotate present-day cells, then add the 1° terrain changes (bilinear)
+    const { w, h } = HD, res = 360 / w, OCEAN = -4200, E = new Float32Array(w * h).fill(OCEAN), ph = presentHD;
+    cache = new Map(); const mats = new Map();
+    for (let k = 0; k < ph.n; k++) {
+      const pid = ph.P[k];
+      let m = mats.get(pid);
+      if (m === undefined) { const q = absRot(pid, age); m = q ? qMatrix(q) : null; mats.set(pid, m); }
+      if (!m) continue;
+      const x = ph.X[k], y = ph.Y[k], z = ph.Z[k];
+      const Xr = m[0]*x + m[1]*y + m[2]*z, Yr = m[3]*x + m[4]*y + m[5]*z, Zr = m[6]*x + m[7]*y + m[8]*z;
+      const lat = Math.asin(Math.max(-1, Math.min(1, Zr))) / D2R, lon = Math.atan2(Yr, Xr) / D2R;
+      const py = (90 - lat) / res, px = (lon + 180) / res;
+      const hw = Math.min(w / 2, 0.75 / Math.max(0.05, Math.cos(lat * D2R)));
+      const y0 = Math.max(0, Math.round(py - 0.75)), y1 = Math.min(h - 1, Math.round(py + 0.75));
+      const x0 = Math.round(px - hw), x1 = Math.round(px + hw), ev = ph.EL[k];
+      for (let yy = y0; yy <= y1; yy++) {
+        const row = yy * w;
+        for (let xx = x0; xx <= x1; xx++) { const j = row + ((xx % w) + w) % w; if (ev > E[j]) E[j] = ev; }
+      }
+    }
+    const sample = (grid, r, c) => { // bilinear on the 1° grid
+      const fr = r * res, fc = c * res, r0 = Math.min(PH - 2, Math.floor(fr)), c0 = Math.floor(fc) % PW, c1 = (c0 + 1) % PW, tr = fr - r0, tc = fc - Math.floor(fc);
+      return grid[r0 * PW + c0] * (1 - tr) * (1 - tc) + grid[r0 * PW + c1] * (1 - tr) * tc + grid[(r0 + 1) * PW + c0] * tr * (1 - tc) + grid[(r0 + 1) * PW + c1] * tr * tc;
+    };
+    if (futureMode === 'sim' && SIM && SIM.zone) {
+      for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
+        const j = r * w + c, u = sample(low.up, r, c);
+        if (u > 30) { let v = Math.max(E[j], 100) + u; if (v > 4300) v = 4300 + (v - 4300) * 0.35; E[j] = Math.min(6000, v); continue; }
+        const dn = sample(low.down, r, c);
+        if (dn > 0 && E[j] > -400) E[j] -= dn;
+      }
+      for (const k of low.trenchCells) { // deepen ~1° around each trench cell
+        const r1 = Math.floor(k / PW), c1 = k % PW, rc = Math.round(r1 / res), cc = Math.round(c1 / res);
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -2; dc <= 2; dc++) {
+          const rr = rc + dr; if (rr < 0 || rr >= h) continue;
+          const j = rr * w + ((cc + dc) % w + w) % w; if (E[j] < -2500) E[j] = -9000;
+        }
+      }
+    }
+    paintGrid(blur3(E, w, h), w, h);
+  } else {
+    paintGrid(blur3(low.e, PW, PH), PW, PH);
+  }
+  drawTrench(low.trenchCells);
+}
+
+function computeFutureLow() {
+  if (!presentCells) buildPresentCells();
+  // rotate present-day cells with their plates onto a fresh 1° grid, then shade it like the past maps
+  const OCEAN = -4200, e = new Float32Array(PW * PH).fill(OCEAN);
+  cache = new Map(); const mats = new Map();
+  for (const c of presentCells) {
+    let m = mats.get(c.pid);
+    if (m === undefined) { const q = absRot(c.pid, age); m = q ? qMatrix(q) : null; mats.set(c.pid, m); }
+    if (!m) continue;
+    const X = m[0]*c.x + m[1]*c.y + m[2]*c.z, Y = m[3]*c.x + m[4]*c.y + m[5]*c.z, Z = m[6]*c.x + m[7]*c.y + m[8]*c.z;
+    const lat = Math.asin(Math.max(-1, Math.min(1, Z))) / D2R, lon = Math.atan2(Y, X) / D2R;
+    const py = 90 - lat, px = lon + 180;
+    const hw = Math.min(180, 0.75 / Math.max(0.05, Math.cos(lat * D2R)));
+    const y0 = Math.max(0, Math.round(py - 0.75)), y1 = Math.min(PH - 1, Math.round(py + 0.75));
+    const x0 = Math.round(px - hw), x1 = Math.round(px + hw);
+    for (let y = y0; y <= y1; y++) {
+      const row = y * PW;
+      for (let x = x0; x <= x1; x++) { const k = row + ((x % PW) + PW) % PW; if (c.e > e[k]) e[k] = c.e; }
+    }
+  }
+  const trenchCells = [], up = new Float32Array(PW * PH), down = new Float32Array(PW * PH);
+  // future terrain model (Scotese motion unchanged): collision uplift -> erosion, plateau collapse,
+  // foreland basins beside the mountains, and trenches where a continent advances over ocean
+  if (futureMode === 'sim' && SIM && SIM.zone) {
+    const mats = new Map();
+    const cellOf = (x, y, z, pid) => {
+      let m = mats.get(pid);
+      if (m === undefined) { const q = absRot(pid, age); m = q ? qMatrix(q) : null; mats.set(pid, m); }
+      if (!m) return -1;
+      const X = m[0]*x + m[1]*y + m[2]*z, Y = m[3]*x + m[4]*y + m[5]*z, Z = m[6]*x + m[7]*y + m[8]*z;
+      const r = Math.round(90 - Math.asin(Math.max(-1, Math.min(1, Z))) / D2R), c = ((Math.round(Math.atan2(Y, X) / D2R + 180) % PW) + PW) % PW;
+      return Math.max(0, Math.min(PH - 1, r)) * PW + c;
+    };
+    for (const [x, y, z, pid, t0, t1] of SIM.zone) {
+      if (age > t0) continue;                                    // collision not started yet
+      const active = age >= t1, grow = (active ? t0 - age : t0 - t1);
+      let u = Math.min(2600, 300 + grow * 110);                  // thickening while plates keep converging
+      if (grow > 35) u *= 1 - 0.3 * Math.min(1, (grow - 35) / 40);   // over-thick crust spreads and sags (collapse)
+      if (!active) u *= Math.pow(0.5, (t1 - age) / 50);          // erosion once the collision stops (half every 50 Myr)
+      const k = cellOf(x, y, z, pid); if (k >= 0 && u > up[k]) up[k] = u;
+    }
+    for (const [x, y, z, pid, t0, t1] of SIM.fore) {
+      if (age > t0) continue;
+      const active = age >= t1;
+      let dn = Math.min(650, 120 + (active ? t0 - age : t0 - t1) * 60);   // crust bent down by the mountain load
+      if (!active) dn *= Math.pow(0.5, (t1 - age) / 30);          // basin fills with sediment / rebounds
+      const k = cellOf(x, y, z, pid); if (k >= 0 && dn > down[k]) down[k] = dn;
+    }
+    for (let k = 0; k < e.length; k++) {
+      if (up[k] > 0) {
+        let v = Math.max(e[k], 100) + up[k];
+        if (v > 4300) v = 4300 + (v - 4300) * 0.35;                // plateau tops flatten
+        e[k] = Math.min(6000, v);
+      } else if (down[k] > 0 && e[k] > -400) e[k] -= down[k];      // low plain or shallow inland sea
+    }
+    const bit = Math.min(50, Math.max(0, Math.round(-age / 5)));
+    for (const [x, y, z, pid, bits] of SIM.trench) {
+      if (bits.charCodeAt(bit) !== 49) continue;
+      const k = cellOf(x, y, z, pid);
+      if (k >= 0 && e[k] < -2500) trenchCells.push(k);         // only in open, deep ocean
+    }
+    // keep only trench cells that form lines of 4+ connected cells; drop short specks
+    const tset = new Set(trenchCells), seen = new Set(), keep = [];
+    for (const k0 of tset) {
+      if (seen.has(k0)) continue;
+      const comp = [k0], stack = [k0]; seen.add(k0);
+      while (stack.length) {
+        const k = stack.pop(), r = Math.floor(k / PW), c = k % PW;
+        for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+          const rr = r + dr; if (rr < 0 || rr >= PH) continue;
+          const n = rr * PW + (c + dc + PW) % PW;
+          if (tset.has(n) && !seen.has(n)) { seen.add(n); comp.push(n); stack.push(n); }
+        }
+      }
+      if (comp.length >= 4) keep.push(...comp);
+    }
+    trenchCells.length = 0;
+    for (const k of keep) { e[k] = -11000; trenchCells.push(k); }   // deep trench (the blur spreads it)
+  }
+  return { e, up, down, trenchCells };
+}
+function lonX(lon) { return (lon + 180) / 360 * TW; }
+function latY(lat) { return (90 - lat) / 180 * TH; }
+
+// stroke only the edges that face the sea; seams between plate pieces inside a continent are skipped
+function traceCoast(ctx, lons, lats, flags, want = '1') {
+  const n = lons.length;
+  let d = (lons[0] - lons[n - 1]) % 360; if (d > 180) d -= 360; else if (d < -180) d += 360;
+  for (const off of [-360, 0, 360]) {
+    let pen = false;
+    for (let i = 0; i < n; i++) {
+      if (flags ? flags[i] !== want : want !== '1') { pen = false; continue; }
+      const x0 = lons[i], x1 = i < n - 1 ? lons[i + 1] : lons[n - 1] + d, y1 = i < n - 1 ? lats[i + 1] : lats[0];
+      if (!pen) { ctx.moveTo(lonX(x0 + off), latY(lats[i])); pen = true; }
+      ctx.lineTo(lonX(x1 + off), latY(y1));
+    }
+  }
+}
+function tracePoly(ctx, lons, lats, pole) {
+  // lons already unwrapped
+  for (const off of [-360, 0, 360]) {
+    ctx.moveTo(lonX(lons[0] + off), latY(lats[0]));
+    for (let i = 1; i < lons.length; i++) ctx.lineTo(lonX(lons[i] + off), latY(lats[i]));
+    if (pole) {
+      ctx.lineTo(lonX(lons[lons.length-1] + off), latY(pole));
+      ctx.lineTo(lonX(lons[0] + off), latY(pole));
+    }
+    ctx.closePath();
+  }
+}
+
+function projectAll(vecs = unitVecs, pids = polyPid) {
+  cache = new Map();
+  const out = [];
+  const mats = new Map();
+  for (let p = 0; p < vecs.length; p++) {
+    const pid = pids[p];
+    let m = mats.get(pid);
+    if (m === undefined) { const q = absRot(pid, age); m = q ? qMatrix(q) : null; mats.set(pid, m); }
+    if (!m) { out.push(null); continue; }
+    const v = vecs[p], n = v.length / 3, lons = new Float32Array(n), lats = new Float32Array(n);
+    let prev = 0, acc = 0, latSum = 0;
+    for (let i = 0; i < n; i++) {
+      const x = v[i*3], y = v[i*3+1], z = v[i*3+2];
+      const X = m[0]*x + m[1]*y + m[2]*z, Y = m[3]*x + m[4]*y + m[5]*z, Z = m[6]*x + m[7]*y + m[8]*z;
+      let lon = Math.atan2(Y, X) / D2R; const lat = Math.asin(Math.max(-1, Math.min(1, Z))) / D2R;
+      if (i > 0) { let d = lon - prev; if (d > 180) d -= 360; else if (d < -180) d += 360; acc += d; prev = lon; lon = lons[i-1] + d; }
+      else prev = lon;
+      lons[i] = lon; lats[i] = lat; latSum += lat;
+    }
+    // closing edge
+    let d = (lons[0] - lons[n-1]) % 360; if (d > 180) d -= 360; else if (d < -180) d += 360;
+    const wind = (lons[n-1] + d) - lons[0];
+    const pole = Math.abs(wind) > 180 ? (latSum / n >= 0 ? 90 : -90) : 0;
+    out.push({ lons, lats, pole });
+  }
+  return out;
+}
+
+function drawTexture() {
+  const proj = projectAll();
+  g.globalCompositeOperation = 'source-over';
+  g.fillStyle = '#0d3460'; g.fillRect(0, 0, TW, TH);
+
+  if (mode === 'terrain' && DEM) {
+    if (age >= 0) paintPast(); else paintFuture();
+  } else {
+    const byGroup = {};
+    proj.forEach((pr, i) => { if (pr) (byGroup[polyGroup[i]] ||= []).push(pr); });
+    for (const [k, list] of Object.entries(byGroup)) {
+      g.fillStyle = GROUPS[k].color; g.beginPath();
+      list.forEach(pr => tracePoly(g, pr.lons, pr.lats, pr.pole));
+      g.fill('nonzero');
+    }
+  }
+  // plate pieces: the full outline of every piece, so a boundary stays continuous even along the coast
+  const seams = document.getElementById('seams').checked;
+  if (seams) {
+    g.save(); g.lineJoin = 'round';
+    const pp = projectAll(plateVecs, platePid);
+    // oceanic pieces are today's sea floor: most of it did not exist yet (or was later subducted)
+    // far from the present, so they fade out within ~20 Myr either side of today
+    const oceanA = Math.max(0, 1 - Math.abs(age) / 20);
+    for (const [cont, alpha] of [[1, 1], [0, oceanA]]) {
+      if (alpha <= 0.01) continue;
+      g.globalAlpha = alpha; g.beginPath();
+      pp.forEach((pr, i) => { if (pr && (plateCont[i] ?? 1) === cont) traceCoast(g, pr.lons, pr.lats, plateEdge[i] || null); });
+      g.strokeStyle = 'rgba(25,10,0,0.5)'; g.lineWidth = 2.8 * LS; g.stroke();
+      g.strokeStyle = cont ? '#ff7a45' : '#ffb08a'; g.lineWidth = (cont ? 1.5 : 1.2) * LS; g.stroke();
+    }
+    g.restore();
+  }
+  // present-day coastlines carried along by the plates (drawn on top, thinner when pieces are shown)
+  if (mode !== 'terrain' || document.getElementById('coast').checked) {
+    g.strokeStyle = mode === 'terrain' ? 'rgba(255,255,255,0.75)' : 'rgba(10,20,40,0.55)';
+    g.lineWidth = (mode === 'terrain' ? (seams ? 0.9 : 1.4) : 1.2) * LS;
+    g.setLineDash(mode === 'terrain' ? [5 * LS, 4 * LS] : []);
+    g.beginPath();
+    proj.forEach((pr, i) => { if (pr) traceCoast(g, pr.lons, pr.lats, polyCoast[i]); });
+    g.stroke(); g.setLineDash([]);
+  }
+
+  if (document.getElementById('grid').checked) {
+    g.strokeStyle = 'rgba(255,255,255,0.16)'; g.lineWidth = LS; g.beginPath();
+    for (let lon = -180; lon <= 180; lon += 30) { g.moveTo(lonX(lon), 0); g.lineTo(lonX(lon), TH); }
+    for (let lat = -60; lat <= 60; lat += 30) { g.moveTo(0, latY(lat)); g.lineTo(TW, latY(lat)); }
+    g.stroke();
+    g.strokeStyle = 'rgba(255,200,120,0.35)'; g.beginPath(); g.moveTo(0, latY(0)); g.lineTo(TW, latY(0)); g.stroke();
+  }
+  texture.needsUpdate = true;
+  updateCity();
+}
+
+// ---------- three.js scene ----------
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+camera.position.set(0, 0, 4.3);
+// the globe (and the star field) rotate; the camera stays on +Z looking at the centre
+const earth = new THREE.Group(); scene.add(earth);
+
+const texture = new THREE.CanvasTexture(tex);
+texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+const globe = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 96), new THREE.MeshPhongMaterial({ map: texture, shininess: 12, specular: 0x223344 }));
+earth.add(globe);
+
+// atmosphere rim
+const atm = new THREE.Mesh(new THREE.SphereGeometry(1.06, 64, 48), new THREE.ShaderMaterial({
+  transparent: true, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: 'varying vec3 n; void main(){ n = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: 'varying vec3 n; void main(){ float i = pow(0.72 - dot(n, vec3(0,0,1.0)), 3.0); gl_FragColor = vec4(0.35,0.6,1.0,1.0) * i; }',
+}));
+scene.add(atm);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.62));
+const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(-2, 1.5, 3);
+camera.add(sun); scene.add(camera);
+
+// stars
+(() => {
+  const n = 1800, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const u = Math.random()*2-1, th = Math.random()*Math.PI*2, r = 30 + Math.random()*20, s = Math.sqrt(1-u*u);
+    pos.set([r*s*Math.cos(th), r*u, r*s*Math.sin(th)], i*3);
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  earth.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xaab8d6, size: 0.08, sizeAttenuation: true })));
+})();
+
+// city marker
+// ---------- event effects: one shader sphere just above the ground, up to 4 effects at once ----------
+const FXN = 4;
+const fxMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false,
+  blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+  uniforms: {
+    uC: { value: Array.from({ length: FXN }, () => new THREE.Vector3(0, 0, 1)) },
+    uType: { value: new Array(FXN).fill(0) }, uT: { value: new Array(FXN).fill(0) },
+    uA: { value: new Array(FXN).fill(0) }, uR: { value: new Array(FXN).fill(0.1) }, uTime: { value: 0 },
+  },
+  vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    #define N ${FXN}
+    uniform vec3 uC[N]; uniform float uType[N]; uniform float uT[N]; uniform float uA[N]; uniform float uR[N]; uniform float uTime;
+    varying vec3 vP;
+    float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+    float noise(vec3 p) {
+      vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(hash(i), hash(i + vec3(1,0,0)), f.x), mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x), mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+    }
+    float fall(float a, float b, float x) { return 1.0 - smoothstep(b, a, x); }   // 1 below b, 0 above a
+    float ring(float d, float r, float w) { float x = (d - r) / w; return exp(-x * x); }
+    vec4 over(vec4 acc, vec3 c, float a) { a = clamp(a, 0.0, 1.0); return acc + (1.0 - acc.a) * vec4(c * a, a); }
+    void main() {
+      vec3 p = normalize(vP);
+      vec4 acc = vec4(0.0);
+      for (int i = 0; i < N; i++) {
+        float A = uA[i]; if (A <= 0.0) continue;
+        float d = acos(clamp(dot(p, uC[i]), -1.0, 1.0));       // angular distance (radians)
+        float R = uR[i], t = uT[i], ty = uType[i];
+        if (ty < 1.5) {                                          // impact
+          float settle = smoothstep(6.0, 14.0, t);               // 0 while the sequence plays, 1 afterwards
+          float flash = exp(-max(t, 0.0) * 2.2) * fall(0.22, 0.0, d);
+          acc = over(acc, vec3(1.0, 0.95, 0.8), flash * A);
+          float n = noise(p * 40.0 + uTime * 0.6);
+          float core = fall(R, R * 0.1, d);
+          float heatNow = core * (0.85 * exp(-max(t - 0.4, 0.0) * 0.35));                  // fireball / thermal radiation
+          acc = over(acc, mix(vec3(1.0, 0.2, 0.04), vec3(1.0, 0.8, 0.35), fall(R, 0.0, d)), heatNow * (0.85 + 0.15 * n) * A);
+          acc = over(acc, vec3(0.35, 0.08, 0.03), 0.38 * core * (0.6 + 0.4 * n) * max(settle, 1.0 - exp(-t)) * A);   // scorched ground
+          float crater = ring(d, 0.0145, 0.006) + 0.6 * ring(d, 0.03, 0.01);
+          acc = over(acc, vec3(0.02, 0.01, 0.0), 0.9 * min(crater, 1.0) * A);
+          if (t < 10.0) {
+            float rr = 0.42 * t;                                 // shock front sweeping the hemisphere
+            acc = over(acc, vec3(1.0, 0.88, 0.65), ring(d, rr, 0.02 + 0.012 * t) * (1.0 - t / 10.0) * A);
+            acc = over(acc, vec3(1.0, 0.55, 0.25), 0.55 * ring(d, rr * 0.8, 0.035 + 0.02 * t) * (1.0 - t / 10.0) * A);
+          }
+          float spread = min(3.2, 0.35 * max(t - 1.0, 0.0));     // dust cloud spreading around the globe
+          float dust = fall(spread, spread - 0.6, d) * (0.65 - 0.35 * settle);
+          float m = noise(p * 6.0 + vec3(uTime * 0.12));
+          acc = over(acc, vec3(0.17, 0.13, 0.1), dust * (0.65 + 0.35 * m) * A);
+        } else if (ty < 2.5) {                                   // flood basalt
+          float n = noise(p * (30.0 / max(R, 0.02)) + vec3(0.0, uTime * 0.25, 0.0));
+          float field = fall(R, R * 0.55, d + 0.25 * R * (n - 0.5));
+          float pulse = 0.75 + 0.25 * sin(uTime * 2.2 + n * 6.0);
+          acc = over(acc, mix(vec3(0.55, 0.06, 0.02), vec3(1.0, 0.45, 0.08), n), 0.75 * field * pulse * A);
+          float plume = ring(d, R * (1.1 + 0.9 * fract(uTime * 0.18)), R * 0.25) * (1.0 - fract(uTime * 0.18));
+          acc = over(acc, vec3(0.55, 0.5, 0.45), 0.35 * plume * A);
+        } else if (ty < 3.5) {                                   // growing ice sheet
+          float grow = R * (0.35 + 0.65 * smoothstep(0.0, 6.0, t));
+          float n = noise(p * 25.0);
+          float ice = fall(grow, grow * 0.8, d + 0.04 * (n - 0.5));
+          acc = over(acc, vec3(0.93, 0.97, 1.0), 0.8 * ice * A);
+        } else if (ty < 4.5) {                                   // global heat pulse
+          float wave = 0.5 + 0.5 * sin(uTime * 1.5 - d * 3.0);
+          acc = over(acc, vec3(1.0, 0.35, 0.1), (0.10 + 0.12 * wave) * fall(R * 1.2, 0.0, d) * A);
+        } else {                                                 // collision ripples
+          for (int k = 0; k < 3; k++) {
+            float ph = fract(uTime * 0.35 + float(k) / 3.0);
+            acc = over(acc, vec3(1.0, 0.55, 0.75), 0.5 * ring(d, R * ph, R * 0.08) * (1.0 - ph) * A);
+          }
+        }
+      }
+      gl_FragColor = acc;
+    }`,
+});
+const fxSphere = new THREE.Mesh(new THREE.SphereGeometry(1.003, 160, 120), fxMat);
+fxSphere.renderOrder = 2; earth.add(fxSphere);
+const fxStart = new Map();   // event index -> time the effect was (re)started
+function updateFx(now) {
+  const u = fxMat.uniforms, list = [];
+  if (document.getElementById('evts').checked) {
+    GEO_EVENTS.forEach((e, i) => {
+      const fx = e.fx; if (!fx || !evActive(e) || !pinLocal[i]) return;
+      const f = 1 - Math.abs(age - e.age) / e.span; if (f <= 0) return;
+      list.push({ i, fx, a: Math.min(1, f * 1.6), loc: pinLocal[i] });
+    });
+  }
+  list.sort((x, y) => y.a - x.a);
+  for (let k = 0; k < FXN; k++) {
+    const it = list[k];
+    if (!it) { u.uA.value[k] = 0; continue; }
+    u.uC.value[k].copy(it.loc).normalize();
+    u.uType.value[k] = it.fx.type; u.uR.value[k] = it.fx.r * D2R; u.uA.value[k] = it.a;
+    u.uT.value[k] = fxStart.has(it.i) ? (now - fxStart.get(it.i)) / 1000 : 30;   // never triggered: settled state
+  }
+  u.uTime.value = now / 1000;
+}
+
+const marker = new THREE.Group();
+const dot = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff4d3d }));
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.03, 0.04, 32), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+marker.add(dot, ring); earth.add(marker);
+const cityTag = document.getElementById('cityTag');
+
+function sphereXYZ(lon, lat, r = 1) { // matches THREE.SphereGeometry UV layout
+  const phi = (lon + 180) * D2R, cl = Math.cos(lat * D2R);
+  return new THREE.Vector3(-Math.cos(phi) * cl * r, Math.sin(lat * D2R) * r, Math.sin(phi) * cl * r);
+}
+function updateCity() {
+  marker.visible = false; cityTag.hidden = true;
+  if (cityIdx === null) return;
+  const c = CITIES[cityIdx]; cache = new Map();
+  const q = absRot(c.pid, age); if (!q) return;
+  const m = qMatrix(q), la = c.lat*D2R, lo = c.lon*D2R;
+  const x = Math.cos(la)*Math.cos(lo), y = Math.cos(la)*Math.sin(lo), z = Math.sin(la);
+  const X = m[0]*x+m[1]*y+m[2]*z, Y = m[3]*x+m[4]*y+m[5]*z, Z = m[6]*x+m[7]*y+m[8]*z;
+  const lon = Math.atan2(Y, X)/D2R, lat = Math.asin(Z)/D2R;
+  const p = sphereXYZ(lon, lat, 1.002);
+  marker.position.copy(p); marker.lookAt(p.clone().multiplyScalar(2));
+  marker.visible = true; marker.userData = { name: c.name, lat };
+}
+
+// ---------- globe navigation (grab-and-drag, north stays up) ----------
+// orientation = Rx(tilt) * Ry(spin); tilt > 0 brings the northern hemisphere toward the viewer
+const MIN_D = 1.22, MAX_D = 9, TILT_MAX = 85 * D2R;
+const view = { spin: 0, tilt: 0.45, dist: 4.3 };
+let vel = { spin: 0, tilt: 0 };      // inertia, radians per second
+let tween = null;                    // animated fly-to
+let autoSpin = true;
+const qX = new THREE.Quaternion(), qY = new THREE.Quaternion(), AX = new THREE.Vector3(1, 0, 0), AY = new THREE.Vector3(0, 1, 0);
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+function applyView() {
+  view.tilt = Math.max(-TILT_MAX, Math.min(TILT_MAX, view.tilt));
+  view.dist = Math.max(MIN_D, Math.min(MAX_D, view.dist));
+  qX.setFromAxisAngle(AX, view.tilt); qY.setFromAxisAngle(AY, view.spin);
+  earth.quaternion.copy(qX).multiply(qY);
+  camera.position.set(0, 0, view.dist); camera.lookAt(0, 0, 0);
+  camera.near = Math.max(0.01, (view.dist - 1) * 0.5); camera.updateProjectionMatrix();
+  marker.scale.setScalar(Math.max(0.12, Math.min(1.2, (view.dist - 1) / 3.3)));
+  camera.updateMatrixWorld(); earth.updateMatrixWorld();
+}
+// where a screen point hits the unit sphere (world space), or null
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function hitSphere(cx, cy) {
+  ndc.set(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const o = ray.ray.origin, d = ray.ray.direction, b = o.dot(d), c = o.dot(o) - 1, disc = b * b - c;
+  if (disc < 0) return null;
+  return o.clone().addScaledVector(d, -b - Math.sqrt(disc));
+}
+// rotate so the geographic point under h0 moves to h1 (both world-space hits)
+function dragBy(h0, h1) {
+  const ct = Math.cos(view.tilt), st = Math.sin(view.tilt);
+  const az = h => { const y = h.y * ct + h.z * st, z = -h.y * st + h.z * ct; return Math.atan2(h.x, z); }; // undo tilt
+  const ds = wrapA(az(h1) - az(h0));
+  const dt = -(Math.atan2(h1.y, h1.z) - Math.atan2(h0.y, h0.z));
+  view.spin += ds; view.tilt += dt;
+  return { ds, dt };
+}
+function zoomAt(factor, cx, cy) {
+  const h0 = cx == null ? null : hitSphere(cx, cy), held = h0 ? earth.worldToLocal(h0) : null;
+  view.dist = 1 + (view.dist - 1) * factor; applyView();
+  if (held) for (let i = 0; i < 4; i++) { // keep the point under the cursor fixed while zooming
+    const h = hitSphere(cx, cy); if (!h) break;
+    dragBy(earth.localToWorld(held.clone()), h); applyView();
+  }
+}
+function flyTo(spin, tilt, dist, dur = 900) {
+  tween = { s0: view.spin, t0: view.tilt, d0: view.dist, ds: wrapA(spin - view.spin), dt: tilt - view.tilt, dd: (dist ?? view.dist) - view.dist, start: performance.now(), dur };
+  vel = { spin: 0, tilt: 0 };
+}
+function stepTween(now) {
+  if (!tween) return;
+  let f = Math.min(1, (now - tween.start) / tween.dur); f = f < .5 ? 4*f*f*f : 1 - Math.pow(-2*f + 2, 3) / 2;
+  view.spin = tween.s0 + tween.ds * f; view.tilt = tween.t0 + tween.dt * f; view.dist = tween.d0 + tween.dd * f;
+  if (f >= 1) tween = null;
+}
+function stopAuto() { if (autoSpin) { autoSpin = false; const sp = document.getElementById('spin'); if (sp) sp.checked = false; } }
+// face a local (globe-frame) point
+function faceLocal(p, dist) {
+  const v = p.clone().normalize();
+  flyTo(-Math.atan2(v.x, v.z), Math.max(-TILT_MAX, Math.min(TILT_MAX, Math.asin(v.y) - 0.12)), dist);
+}
+function aimAtCity() { if (marker.visible) faceLocal(marker.position); }
+
+// pointer handling: one pointer drags, two pointers pinch-zoom and drag
+const cvs = renderer.domElement, pts = new Map();
+let last = null, anchor = null, pinch0 = null, samples = [];
+cvs.style.cursor = 'grab';
+function centroid() { let x = 0, y = 0; pts.forEach(p => { x += p.x; y += p.y; }); return { x: x / pts.size, y: y / pts.size }; }
+function spread() { const a = [...pts.values()]; return a.length < 2 ? 0 : Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); }
+// the geographic point (globe frame) that is held under the cursor / finger centroid
+function grab(c) { const h = hitSphere(c.x, c.y); anchor = h ? earth.worldToLocal(h) : null; last = c; }
+cvs.addEventListener('pointerdown', e => {
+  try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  stopAuto(); tween = null; vel = { spin: 0, tilt: 0 }; samples = [];
+  grab(centroid()); pinch0 = pts.size === 2 ? spread() : null;
+  cvs.style.cursor = 'grabbing';
+});
+cvs.addEventListener('pointermove', e => {
+  if (!pts.has(e.pointerId)) return;
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const c = centroid(), now = performance.now(), s0 = view.spin, t0 = view.tilt;
+  if (pts.size === 2 && pinch0) {
+    const s = spread();
+    if (s > 4) { view.dist = 1 + (view.dist - 1) * (pinch0 / s); applyView(); pinch0 = s; }
+  }
+  let held = false;
+  if (anchor) {
+    for (let i = 0; i < 4; i++) { // converge so the held point sits exactly under the cursor
+      const h = hitSphere(c.x, c.y); if (!h) break;
+      dragBy(earth.localToWorld(anchor.clone()), h); applyView(); held = true;
+    }
+  }
+  if (!held) { // off the globe: turn by pixel distance, slower when zoomed in
+    const k = 0.0035 * Math.min(1.5, (view.dist - 1) / 2.5 + 0.08);
+    view.spin += (c.x - last.x) * k; view.tilt += (c.y - last.y) * k; applyView();
+    grab(c);
+  }
+  last = c;
+  samples.push({ t: now, ds: wrapA(view.spin - s0), dt: view.tilt - t0 }); samples = samples.filter(s => now - s.t < 90);
+});
+function endPointer(e) {
+  if (!pts.has(e.pointerId)) return;
+  pts.delete(e.pointerId);
+  if (pts.size === 0) {
+    const now = performance.now(), recent = samples.filter(s => now - s.t < 90);
+    if (recent.length > 1) {
+      const span = Math.max(16, now - recent[0].t) / 1000;
+      vel = { spin: recent.reduce((a, s) => a + s.ds, 0) / span, tilt: recent.reduce((a, s) => a + s.dt, 0) / span };
+    }
+    cvs.style.cursor = 'grab';
+  } else { grab(centroid()); pinch0 = pts.size === 2 ? spread() : null; }
+}
+cvs.addEventListener('pointerup', endPointer); cvs.addEventListener('pointercancel', endPointer);
+cvs.addEventListener('wheel', e => {
+  e.preventDefault(); stopAuto(); tween = null;
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  zoomAt(Math.exp(Math.max(-1, Math.min(1, dy * 0.0016))), e.clientX, e.clientY);
+}, { passive: false });
+cvs.addEventListener('dblclick', e => {
+  const h = hitSphere(e.clientX, e.clientY); if (!h) return;
+  stopAuto();
+  faceLocal(earth.worldToLocal(h.clone()), 1 + (view.dist - 1) * (e.shiftKey ? 2 : 0.45));
+});
+addEventListener('keydown', e => {
+  if (/INPUT|SELECT|BUTTON/.test(e.target.tagName) && e.target.type !== 'checkbox') return;
+  const step = 0.12 * Math.min(1, (view.dist - 1) / 2.5 + 0.1);
+  const k = e.shiftKey ? { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key]
+    : { ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+  if (k) { e.preventDefault(); stopAuto(); flyTo(view.spin + k[0], view.tilt + k[1], view.dist, 250); }
+  if (e.key === '+' || e.key === '=') { stopAuto(); flyTo(view.spin, view.tilt, 1 + (view.dist - 1) * 0.7, 250); }
+  if (e.key === '-' || e.key === '_') flyTo(view.spin, view.tilt, 1 + (view.dist - 1) / 0.7, 250);
+});
+function stepInertia(dt) {
+  if (pts.size || tween) return;
+  if (autoSpin) { view.spin += 0.09 * dt; return; }
+  if (Math.abs(vel.spin) + Math.abs(vel.tilt) < 1e-3) return;
+  view.spin += vel.spin * dt; view.tilt += vel.tilt * dt;
+  const decay = Math.exp(-dt * 3.2); vel.spin *= decay; vel.tilt *= decay;
+}
+
+let homeDist = 4.3;
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h); camera.aspect = w / h;
+  homeDist = w < 640 ? 5.2 : 4.3;
+  if (!resize.done) { view.dist = homeDist; resize.done = true; }
+  applyView();
+}
+addEventListener('resize', resize); resize();
+
+
+// ---------- event pins ----------
+function fmtAge(a) { // localized "x years ago / from now"
+  if (a === 0) return t('present');
+  const past = a > 0, A = Math.abs(a), loc = LOCALE[LANG];
+  const nf = (x, d) => x.toLocaleString(loc, { maximumFractionDigits: d });
+  if (LANG === 'ko' || LANG === 'ja' || LANG === 'zh-Hans' || LANG === 'zh-Hant') {
+    const U = { ko: ['억', '만', ' 년 전', ' 년 후'], ja: ['億', '万', '年前', '年後'], 'zh-Hans': ['亿', '万', '年前', '年后'], 'zh-Hant': ['億', '萬', '年前', '年後'] }[LANG];
+    const man = Math.round(A * 100), eok = Math.floor(man / 10000), rest = man % 10000;
+    let s = eok ? eok + U[0] : '';
+    if (rest) s += (s && LANG === 'ko' ? ' ' : '') + (LANG === 'ko' && rest % 1000 === 0 ? rest / 1000 + '천만' : rest + U[1]);
+    return s + (past ? U[2] : U[3]);
+  }
+  if (A < 1) {
+    const y = nf(Math.round(A * 1e6), 0);
+    return ({ en: past ? `${y} years ago` : `in ${y} years`, es: past ? `hace ${y} años` : `dentro de ${y} años`,
+      fr: past ? `il y a ${y} ans` : `dans ${y} ans`, de: past ? `vor ${y} Jahren` : `in ${y} Jahren`,
+      pt: past ? `há ${y} anos` : `daqui a ${y} anos`, ru: past ? `${y} лет назад` : `через ${y} лет` })[LANG];
+  }
+  const n = nf(A, 1), one = A === 1;
+  return ({ en: past ? `${n} million years ago` : `${n} million years from now`,
+    es: past ? `hace ${n} ${one ? 'millón' : 'millones'} de años` : `dentro de ${n} ${one ? 'millón' : 'millones'} de años`,
+    fr: past ? `il y a ${n} ${one ? 'million' : 'millions'} d’années` : `dans ${n} ${one ? 'million' : 'millions'} d’années`,
+    de: past ? `vor ${n} ${one ? 'Million' : 'Millionen'} Jahren` : `in ${n} ${one ? 'Million' : 'Millionen'} Jahren`,
+    pt: past ? `há ${n} ${one ? 'milhão' : 'milhões'} de anos` : `daqui a ${n} ${one ? 'milhão' : 'milhões'} de anos`,
+    ru: past ? `${n} млн лет назад` : `через ${n} млн лет` })[LANG];
+}
+const pinsEl = document.getElementById('pins');
+Object.keys(FX).forEach((k, i) => { FX[k].i = i; });
+GEO_EVENTS.forEach((e, i) => { if (i < 24) e.i = i; if (FX[e.title]) e.fx = FX[e.title]; });
+let pinEls = [];
+const evActive = e => (!e.only || e.only === futureMode) && e.age >= -FUT_MAX;
+function buildPins() {
+  pinsEl.innerHTML = '';
+  pinEls = GEO_EVENTS.map((e, i) => {
+  const b = document.createElement('button');
+  b.className = 'pin'; b.style.setProperty('--k', KINDS[e.kind].color); b.hidden = true;
+  b.innerHTML = `<i></i><span></span>`; b.querySelector('span').textContent = evTitle(e);
+  b.setAttribute('aria-label', `${evTitle(e)}, ${fmtAge(e.age)}`);
+  b.onclick = ev => { ev.stopPropagation(); openPop(i); };
+  pinsEl.appendChild(b); return b;
+  });
+}
+buildPins();
+let pinAge = null, pinLocal = [], popIdx = null;
+function eventLocal(e, a) { // globe-frame position of the site at age a
+  cache = new Map();
+  const q = absRot(e.pid, a); if (!q) return null;
+  const m = qMatrix(q), la = e.lat * D2R, lo = e.lon * D2R;
+  const x = Math.cos(la) * Math.cos(lo), y = Math.cos(la) * Math.sin(lo), z = Math.sin(la);
+  const X = m[0]*x+m[1]*y+m[2]*z, Y = m[3]*x+m[4]*y+m[5]*z, Z = m[6]*x+m[7]*y+m[8]*z;
+  return sphereXYZ(Math.atan2(Y, X) / D2R, Math.asin(Math.max(-1, Math.min(1, Z))) / D2R, 1.004);
+}
+const pv = new THREE.Vector3(), camDir = new THREE.Vector3();
+function placePins() {
+  const on = document.getElementById('evts').checked;
+  if (pinAge !== age) { pinAge = age; pinLocal = GEO_EVENTS.map(e => Math.abs(age - e.age) < e.span ? eventLocal(e, age) : null); }
+  camDir.copy(camera.position).normalize();
+  const near = view.dist < 2.2;
+  GEO_EVENTS.forEach((e, i) => {
+    const el = pinEls[i], loc = pinLocal[i];
+    const f = 1 - Math.abs(age - e.age) / e.span;
+    if (!on || !loc || f <= 0 || !evActive(e)) { el.hidden = true; if (popIdx === i) closePop(); return; }
+    pv.copy(loc); earth.localToWorld(pv);
+    const facing = pv.clone().normalize().dot(camDir);
+    if (facing < 0.12) { el.hidden = true; return; }
+    pv.project(camera);
+    el.hidden = false;
+    el.style.left = ((pv.x + 1) / 2 * innerWidth) + 'px';
+    el.style.top = ((1 - pv.y) / 2 * innerHeight) + 'px';
+    el.style.opacity = (0.3 + 0.7 * Math.min(1, f * 1.6)) * Math.min(1, (facing - 0.12) * 6);
+    el.classList.toggle('dim', f < 0.45 && !near && popIdx !== i);
+  });
+  if (popIdx !== null) placePop();
+}
+const pop = document.getElementById('pop');
+function openPop(i) {
+  const e = GEO_EVENTS[i], k = KINDS[e.kind];
+  popIdx = i; pinEls.forEach((b, j) => b.classList.toggle('on', j === i));
+  pop.style.setProperty('--k', k.color);
+  document.getElementById('popKind').textContent = kindName(e.kind).toUpperCase();
+  document.getElementById('popTitle').textContent = evTitle(e);
+  document.getElementById('popAge').textContent = `${fmtAge(e.age)}${e.age < 0 ? ' · ' + t('predicted') : ''}`;
+  document.getElementById('popText').textContent = evText(e);
+  document.getElementById('popGo').hidden = Math.abs(age - Math.max(-FUT_MAX, Math.min(250, e.age))) < 0.3;
+  fxStart.set(i, performance.now());
+  document.getElementById('popFx').hidden = !e.fx; document.getElementById('popFx').textContent = e.fx ? t('fxPrefix') + fxNote(e.fx) : '';
+  document.getElementById('popReplay').hidden = !e.fx;
+  pop.hidden = false; placePop();
+}
+function closePop() { popIdx = null; pop.hidden = true; pinEls.forEach(b => b.classList.remove('on')); }
+function placePop() {
+  const el = pinEls[popIdx];
+  if (el.hidden) { pop.style.opacity = 0.0; return; }
+  pop.style.opacity = 1;
+  document.getElementById('popGo').hidden = Math.abs(age - Math.max(-FUT_MAX, Math.min(250, GEO_EVENTS[popIdx].age))) < 0.3;
+  const r = el.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let x = r.left, y = r.bottom + 8;
+  if (y + h > innerHeight - 200) y = r.top - h - 8;
+  x = Math.max(16, Math.min(innerWidth - w - 16, x)); y = Math.max(16, y);
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+}
+function goToEvent(i) {
+  const e = GEO_EVENTS[i];
+  stop(); setAge(Math.max(-FUT_MAX, Math.min(250, e.age)));
+  const loc = eventLocal(e, age); if (loc) { stopAuto(); faceLocal(loc); }
+  openPop(i);
+}
+document.getElementById('popX').onclick = closePop;
+document.getElementById('popReplay').onclick = () => { if (popIdx !== null) fxStart.set(popIdx, performance.now()); };
+document.getElementById('popGo').onclick = () => goToEvent(popIdx);
+document.getElementById('evts').onchange = e => { if (!e.target.checked) closePop(); };
+cvs.addEventListener('pointerdown', () => { if (popIdx !== null) closePop(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closePop(); });
+
+// one pin per distinct pair of regions that collide in the simulation
+function josa(w, a, b) { const c = w.charCodeAt(w.length - 1); return w + ((c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28) ? b : a); }
+function addSimEvents() {
+  const seen = new Set(), list = [];
+  for (const c of SIM.raw.contacts || []) {
+    const A = c.na, B = c.nb, key = [A, B].sort().join('|');
+    if (A === B || seen.has(key)) continue; seen.add(key);
+    list.push({ age: c.t, span: Math.max(8, Math.min(20, -c.t * 0.12)), lon: c.lon, lat: c.lat, pid: c.pid, kind: 'collision', only: 'sim',
+      fx: { type: 5, r: 7, i: 9 }, colA: A, colB: B, title: `${A}–${B}`, text: '' });
+  }
+  GEO_EVENTS = GEO_EVENTS.concat(list);
+  buildPins(); buildEvDots();
+}
+const tmpV = new THREE.Vector3();
+function placeTag() {
+  if (!marker.visible) { cityTag.hidden = true; return; }
+  marker.getWorldPosition(tmpV);
+  const facing = tmpV.clone().normalize().dot(camera.position.clone().normalize()) > 0.15;
+  tmpV.project(camera);
+  if (!facing) { cityTag.hidden = true; return; }
+  cityTag.hidden = false;
+  const lat = marker.userData.lat;
+  cityTag.textContent = `${cityName(CITIES[cityIdx]) || marker.userData.name} · ${t('lat')} ${Math.abs(lat).toFixed(0)}°${lat >= 0 ? 'N' : 'S'}`;
+  cityTag.style.left = ((tmpV.x + 1) / 2 * innerWidth) + 'px';
+  cityTag.style.top = ((1 - tmpV.y) / 2 * innerHeight) + 'px';
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const slider = $('t');
+function fmtYears(a) { return fmtAge(Math.abs(a) < 1 ? Math.round(a * 10) / 10 : Math.round(a)); }
+function periodAt(a) {
+  if (a < 0) return null;
+  if (a === 0) return PERIODS[PERIODS.length - 1];
+  // a period's start age belongs to that period (e.g. exactly 145 Ma = Cretaceous)
+  return PERIODS.find(p => a <= p.from && a > p.to) || PERIODS[0];
+}
+function eventAt(a) {
+  if (a < 0 && futureMode === 'sim' && SIM) { // future in simulation mode: latest collision so far
+    let best = null;
+    for (const e of GEO_EVENTS) if (e.only === 'sim' && e.age >= a && (!best || e.age < best.age)) best = e;
+    return best ? { title: evTitle(best), text: evText(best) }
+      : { title: t('futureStartT'), text: t('futureStartX') };
+  }
+  // nearest preceding event on the timeline direction (past → future)
+  let best = EVENTS[0];
+  for (const e of EVENTS) if (a <= e.age + 0.001) best = e;
+  return best;
+}
+function updateUI() {
+  if (document.getElementById('tempVal')) updateTemp();
+  $('when').textContent = fmtYears(age); $('when').classList.toggle('long', $('when').textContent.length > 18);
+  $('ma').textContent = age === 0 ? '0 Ma' : (age > 0 ? `${age.toFixed(1)} Ma` : `+${(-age).toFixed(1)} Myr`);
+  const p = periodAt(age), e = eventAt(age);
+  const et = e.i != null && D().era[e.i] ? D().era[e.i] : [e.title, e.text];
+  if (p) { $('eraName').textContent = `${periodName(PERIODS.indexOf(p))} · ${et[0]}`; $('eraChip').style.background = p.color; $('eraEyebrow').textContent = `${periodName(PERIODS.indexOf(p))} · ${p.from}–${p.to} Ma`; }
+  else { $('eraName').textContent = et[0]; $('eraChip').style.background = 'repeating-linear-gradient(135deg,#9aa6c4 0 3px,#3b4560 3px 6px)'; $('eraEyebrow').textContent = t('future'); }
+  $('eraText').textContent = et[1];
+  $('futureBadge').hidden = age >= 0;
+  $('futureBadge').textContent = t('predicted');
+  document.querySelectorAll('#presets button').forEach(b => b.classList.toggle('on', b.classList.contains('per')
+    ? age >= 0 && age <= +b.dataset.from && age > +b.dataset.to || (age === 0 && +b.dataset.to === 0)
+    : Math.abs(+b.dataset.age - age) < 0.3));
+}
+function setAge(a, fromSlider) {
+  age = Math.max(-FUT_MAX, Math.min(250, a));
+  if (!fromSlider) slider.value = String(-age);
+  updateUI(); if (polys.length) drawTexture();
+}
+
+// strata bar & ticks (rebuilt when the language changes)
+function buildTimeline() {
+  const strata = $('strata'), span = 250 + FUT_MAX;
+  strata.innerHTML = ''; $('ticks').innerHTML = ''; $('presets').innerHTML = '';
+  const pct = a => (250 - a) / span * 100;
+  const segs = PERIODS.map(p => ({ ...p, from: Math.min(p.from, 250) }));
+  segs.forEach(p => {
+    const d = document.createElement('div'); d.style.width = (pct(p.to) - pct(p.from)) + '%'; d.style.background = p.color;
+    d.title = periodName(PERIODS.findIndex(q => q.name === p.name)); strata.appendChild(d);
+  });
+  const f = document.createElement('div'); f.className = 'fut'; f.style.width = (FUT_MAX / span * 100) + '%'; f.title = t('future'); strata.appendChild(f);
+  const ticks = $('ticks');
+  for (let a = 250; a >= -FUT_MAX; a -= 50) {
+    const s = document.createElement('span'); s.style.left = pct(a) + '%';
+    s.textContent = a === 0 ? t('present') : (a > 0 ? `-${a}` : `+${-a}`);
+    if (a === 0) s.className = 'now';
+    if (Math.abs(a) % 100 !== 0 && a !== 0) s.classList.add('hide-sm');
+    if (a === 250) s.style.transform = 'none';
+    if (a === -FUT_MAX) s.style.transform = 'translateX(-100%)';
+    ticks.appendChild(s);
+  }
+  const pre = $('presets');
+  // geologic periods: jump to the start of each (Triassic starts at the first map, 250 Ma)
+  PERIODS.forEach(p => {
+    const b = document.createElement('button'); b.className = 'per';
+    const start = Math.min(250, p.from);
+    const pn = periodName(PERIODS.indexOf(p));
+    b.innerHTML = `<i style="background:${p.color}"></i>`; b.append(pn); b.dataset.from = p.from; b.dataset.to = p.to;
+    b.title = `${t('periodGo', { p: pn })} (${p.from}–${p.to} Ma)`;
+    b.onclick = () => { stop(); setAge(start); aimAtCity(); }; pre.appendChild(b);
+  });
+  const sep = document.createElement('span'); sep.className = 'psep'; sep.setAttribute('aria-hidden', 'true'); pre.appendChild(sep);
+  PRESETS.forEach((p, i) => { const b = document.createElement('button'); b.textContent = D().presets[i] ?? p.label; b.dataset.age = p.age; b.onclick = () => { stop(); setAge(p.age); aimAtCity(); }; pre.appendChild(b); });
+  buildEvDots();
+}
+buildTimeline();
+function buildEvDots() {
+  const evrow = $('evrow'), pct = a => (250 - a) / (250 + FUT_MAX) * 100;
+  evrow.innerHTML = '';
+  GEO_EVENTS.forEach((e, i) => {
+    if (!evActive(e)) return;
+    const d = document.createElement('button');
+    d.style.left = pct(Math.max(-FUT_MAX, Math.min(250, e.age))) + '%';
+    d.style.setProperty('--k', KINDS[e.kind].color);
+    d.title = `${evTitle(e)} · ${fmtAge(e.age)}`; d.setAttribute('aria-label', d.title);
+    d.onclick = () => goToEvent(i);
+    evrow.appendChild(d);
+  });
+}
+(() => {
+})();
+
+function renderLegend() {
+  const L = $('legend'); L.innerHTML = '';
+  $('coastRow').hidden = mode !== 'terrain';
+  if (mode === 'terrain') {
+    const stops = HYPSO.map(([e, c]) => `${c} ${((e + 6000) / 11500 * 100).toFixed(1)}%`).join(',');
+    L.innerHTML = `<div class="scale"><div class="bar" style="background:linear-gradient(90deg,${stops})"></div>
+      <div class="lbl"><span>-6000 m</span><span>${t('sea')}</span><span>+5500 m</span></div></div>`;
+    return;
+  }
+  Object.values(GROUPS).forEach(({ color, name }) => { const s = document.createElement('span'); s.innerHTML = `<i style="background:${color}"></i>${name}`; L.appendChild(s); });
+}
+function setMode(m) { mode = m; renderLegend(); if (polys.length) drawTexture(); }
+function setFuture(m) {
+  futureMode = m; 
+  pinAge = null; closePop(); buildEvDots(); updateUI(); if (polys.length) drawTexture();
+}
+$('coast').onchange = () => drawTexture();
+const sheet = $('sheet'), gear = $('gear');
+gear.onclick = e => { e.stopPropagation(); sheet.hidden = !sheet.hidden; gear.setAttribute('aria-expanded', !sheet.hidden); if (sheet.hidden) closeList(); };
+document.addEventListener('pointerdown', e => { if (!sheet.hidden && !sheet.contains(e.target) && !gear.contains(e.target) && !$('cityList').contains(e.target)) { sheet.hidden = true; gear.setAttribute('aria-expanded', false); closeList(); } });
+addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) { sheet.hidden = true; gear.setAttribute('aria-expanded', false); closeList(); } });
+$('seams').onchange = () => drawTexture();
+// ---- city search ----
+const cs = $('citySearch'), cl = $('cityList');
+let csHits = [], csSel = -1;
+function cityLabel(c) { return cityName(c); }
+function setCity(i) { cityIdx = i; cs.value = cityLabel(CITIES[i]); closeList(); updateCity(); if (i !== null) { stopAuto(); aimAtCity(); } }
+document.body.appendChild(cl);                           // float above the sheet instead of pushing its content
+function placeList() {
+  const g = cs.closest('.group').getBoundingClientRect(), r = cs.closest('.combo').getBoundingClientRect();
+  cl.style.left = g.left + 'px'; cl.style.width = g.width + 'px'; cl.style.top = (r.bottom + 6) + 'px';
+  cl.style.maxHeight = Math.max(120, Math.min(264, innerHeight - r.bottom - 24)) + 'px';
+}
+addEventListener('resize', () => { if (!cl.hidden) placeList(); });
+$('sheet').addEventListener('scroll', () => { if (!cl.hidden) placeList(); });
+function closeList() { cl.hidden = true; cs.setAttribute('aria-expanded', 'false'); csSel = -1; }
+function renderList() {
+  const q = cs.value.trim().toLowerCase();
+  cl.innerHTML = '';
+  if (!q) { closeList(); return; }
+  const starts = [], has = [];
+  CITIES.forEach((c, i) => {
+    const all = c.names ? Object.values(c.names) : [c.name], k = (c.country || '').toLowerCase();
+    const low = c._low || (c._low = all.map(x => String(x).toLowerCase()));
+    if (low.some(x => x.startsWith(q))) starts.push(i); else if (low.some(x => x.includes(q)) || k.includes(q)) has.push(i);
+  });
+  csHits = starts.concat(has).slice(0, 8);
+  if (!csHits.length) { cl.innerHTML = '<li class="empty"></li>'; cl.firstChild.textContent = t('noCity'); }
+  csHits.forEach((i, k) => {
+    const c = CITIES[i], li = document.createElement('li');
+    li.id = 'city-opt-' + k; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', k === csSel);
+    const nm = cityName(c), en = c.names ? c.names.en : c.en;
+    li.innerHTML = '<span></span><small></small>'; li.firstChild.textContent = nm; li.lastChild.textContent = [en !== nm ? en : '', c.country].filter(Boolean).join(', ');
+    li.onpointerdown = ev => { ev.preventDefault(); setCity(i); };
+    cl.appendChild(li);
+  });
+  cl.hidden = false; placeList(); cs.setAttribute('aria-expanded', 'true');
+}
+cs.addEventListener('input', () => { csSel = -1; renderList(); });
+cs.addEventListener('focus', () => cs.select());
+cs.addEventListener('blur', () => setTimeout(() => { closeList(); cs.value = cityLabel(CITIES[cityIdx]); }, 120));
+cs.addEventListener('keydown', e => {
+  e.stopPropagation();                                   // keep Space / arrows / 1-2-3 for typing
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault(); if (!csHits.length) return;
+    csSel = (csSel + (e.key === 'ArrowDown' ? 1 : -1) + csHits.length) % csHits.length;
+    [...cl.children].forEach((li, k) => li.setAttribute('aria-selected', k === csSel));
+    cs.setAttribute('aria-activedescendant', 'city-opt-' + csSel);
+  } else if (e.key === 'Enter') { e.preventDefault(); if (csHits.length) setCity(csHits[Math.max(0, csSel)]); }
+  else if (e.key === 'Escape') { closeList(); cs.blur(); }
+});
+$('cityClear').onclick = () => { cityIdx = null; cs.value = ''; closeList(); updateCity(); };
+
+// ---- global mean temperature card ----
+function gmstAt(a) {                                     // linear between stage midpoints
+  if (a < 0) return null;
+  let i = 0; while (i < GMST.length - 2 && GMST[i + 1][0] < a) i++;
+  const p = GMST[i], q = GMST[i + 1], f = Math.max(0, Math.min(1, (a - p[0]) / (q[0] - p[0])));
+  return [1, 2, 3].map(k => p[k] + (q[k] - p[k]) * f);
+}
+const toU = c => tempUnit === 'F' ? c * 9 / 5 + 32 : c;
+const fmtT = c => toU(c).toFixed(1) + (tempUnit === 'F' ? '°F' : '°C');
+function updateTemp() {
+  const el = $('temp'); if (!el) return;
+  el.hidden = !$('tempOn').checked;
+  const v = gmstAt(age), u = tempUnit === 'F' ? '°F' : '°C';
+  $('tempVal').textContent = v ? fmtT(v[1]) : '—';
+  el.title = v ? `${t('tempTitle')} · ${t('tempRange')} ${toU(v[0]).toFixed(0)}–${toU(v[2]).toFixed(0)}${u} · PhanDA (Judd et al. 2024)`
+               : t('tempNoFuture');
+}
+$('tempOn').onchange = updateTemp;
+document.querySelectorAll('#unit button').forEach(b => b.onclick = () => {
+  tempUnit = b.dataset.u;
+  document.querySelectorAll('#unit button').forEach(x => x.setAttribute('aria-checked', x === b));
+  updateTemp();
+});
+updateTemp();
+$('zIn').onclick = () => { stopAuto(); flyTo(view.spin, view.tilt, 1 + (view.dist - 1) * 0.55, 350); };
+$('zOut').onclick = () => flyTo(view.spin, view.tilt, 1 + (view.dist - 1) / 0.55, 350);
+$('home').onclick = () => flyTo(view.spin, 0.3, homeDist, 700);
+$('toCity').onclick = () => { stopAuto(); aimAtCity(); };
+cvs.addEventListener('pointerdown', () => $('hint').classList.add('gone'), { once: true });
+$('spin').onchange = e => { autoSpin = e.target.checked; vel = { spin: 0, tilt: 0 }; };
+$('grid').onchange = () => drawTexture();
+slider.addEventListener('input', () => {
+  stop(); scrubbing = true; clearTimeout(scrubTimer);
+  scrubTimer = setTimeout(() => { scrubbing = false; drawTexture(); }, 180);  // sharp map once the slider rests
+  setAge(-parseFloat(slider.value), true);
+});
+let speedVal = 1; // Myr per second (보통: 100만 년 = 1초)
+document.querySelectorAll('#speed button').forEach(b => b.onclick = () => {
+  speedVal = +b.dataset.v;
+  document.querySelectorAll('#speed button').forEach(x => x.setAttribute('aria-checked', x === b));
+});
+// ◀ / ▶ and ← / →: step to the next whole million years (dir +1 = into the past),
+// but stop first at any event that lies on the way
+function stepTime(dir) {
+  stop();
+  const EPS = 1e-6;
+  const target = dir > 0 ? Math.floor(age + EPS) + 1 : Math.ceil(age - EPS) - 1;
+  let hit = -1, hitAge = null;
+  GEO_EVENTS.forEach((e, i) => {
+    if (!evActive(e)) return;
+    const t = Math.max(-FUT_MAX, Math.min(250, e.age));
+    const between = dir > 0 ? (t > age + EPS && t <= target + EPS) : (t < age - EPS && t >= target - EPS);
+    if (between && (hitAge === null || (dir > 0 ? t < hitAge : t > hitAge))) { hit = i; hitAge = t; }
+  });
+  if (hit >= 0 && $('evts').checked) { goToEvent(hit); return; }
+  setAge(target);
+  if (popIdx !== null && Math.abs(Math.max(-FUT_MAX, Math.min(250, GEO_EVENTS[popIdx].age)) - age) > 0.05) closePop();
+}
+$('back').onclick = () => stepTime(1);
+$('fwd').onclick = () => stepTime(-1);
+function setPlayIcon(on) { const b = $('play'); b.classList.toggle('on', on); b.setAttribute('aria-label', on ? t('pause') : t('play')); }
+function stop() { const was = playing; playing = false; setPlayIcon(false); if (was && polys.length) drawTexture(); }
+$('play').onclick = () => {
+  if (playing) return stop();
+  if (age <= -FUT_MAX) setAge(250);
+  playing = true; setPlayIcon(true);
+  playPrev = age + 1e-6; evQueue = []; holdUntil = 0;
+};
+// shortcuts: Space = play/pause, ← / → = 1 Myr into the past / future
+addEventListener('keydown', e => {
+  const t = e.target, tag = t.tagName;
+  if (tag === 'SELECT' || (tag === 'INPUT' && t.type === 'text') || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); if (!e.repeat) $('play').click(); return; }
+  if (e.shiftKey || tag === 'INPUT' && t.type === 'range') return; // the slider handles its own arrows
+  if (['1', '2', '3'].includes(e.key)) { const b = document.querySelectorAll('#speed button')[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } return; }  // 1 느리게 · 2 보통 · 3 빠르게
+  if (e.key === 'ArrowLeft') { e.preventDefault(); stepTime(1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); stepTime(-1); }
+});
+
+let lastFrame = performance.now(), accDraw = 0;
+// playback tour: when the playhead reaches an event, turn the globe to it, show it and hold a moment
+let playPrev = 0, evQueue = [], holdUntil = 0;
+const HOLD_MS = 1600; // minimum gap before turning to the next queued event
+function showQueuedEvent(now) {
+  while (evQueue.length && Math.abs(age - GEO_EVENTS[evQueue[0]].age) > GEO_EVENTS[evQueue[0]].span * 0.6) evQueue.shift(); // skip ones already left behind
+  if (!evQueue.length) return;
+  const i = evQueue.shift(), e = GEO_EVENTS[i];
+  const loc = eventLocal(e, age);
+  if (loc) { autoSpin = false; $('spin').checked = false; vel = { spin: 0, tilt: 0 }; faceLocal(loc, Math.min(view.dist, homeDist)); }
+  pinAge = null; openPop(i);
+  holdUntil = now + HOLD_MS;
+}
+function loop(now) {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
+  if (playing) {
+    const following = $('follow').checked && $('evts').checked;
+    const sp = speedVal;
+    let a = age - sp * dt;
+    if (a <= -FUT_MAX) a = -FUT_MAX;
+    if (following) { // queue every event the playhead passes; playback keeps going
+      GEO_EVENTS.forEach((e, i) => { const t = Math.max(-FUT_MAX, Math.min(250, e.age)); if (evActive(e) && t < playPrev && t >= a) evQueue.push(i); });
+      if (evQueue.length && now >= holdUntil) showQueuedEvent(now);
+    }
+    playPrev = a;
+    age = a; slider.value = String(-age); updateUI();
+    accDraw += dt; if (accDraw > 1/30) { accDraw = 0; drawTexture(); }
+    if (a <= -FUT_MAX) stop();
+  }
+  stepTween(now); stepInertia(dt); applyView();
+  ring.scale.setScalar(1 + 0.25 * Math.sin(now / 300));
+  renderer.render(scene, camera);
+  placeTag(); placePins(); updateFx(now);
+  requestAnimationFrame(loop);
+}
+
+// ---------- boot ----------
+renderLegend(); applyLang();
+// ---------- apply the chosen language to everything on screen ----------
+function applyLang() {
+  document.documentElement.lang = LANG;
+  document.title = t('title');
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => el.setAttribute('aria-label', t(el.dataset.i18nAria)));
+  document.querySelectorAll('[data-i18n-title]').forEach(el => el.title = t(el.dataset.i18nTitle) + (el.dataset.key ? ` (${el.dataset.key})` : ''));
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  const L = (h, x) => `<a href="${h}" target="_blank" rel="noopener">${x}</a>`;
+  const esc = x => x.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  $('foot').innerHTML = esc(t('foot')).replace('{paleodem}', L('https://zenodo.org/records/5460860', 'PALEOMAP PaleoDEM'))
+    .replace('{atlas}', L('https://doi.org/10.5281/zenodo.10596609', 'Scotese PaleoAtlas')).replace('{gws}', L('https://gws.gplates.org', 'GPlates Web Service'))
+    .replace('{judd}', L('https://doi.org/10.1126/science.adk3705', 'Judd et al. 2024, Science')).replace('{ne}', L('https://www.naturalearthdata.com', 'Natural Earth'));
+  if (!$('eraEyebrow').textContent || $('eraEyebrow').textContent === '지질 시대') $('eraEyebrow').textContent = t('geoEra');
+  setPlayIcon(playing);
+  buildTimeline(); buildPins(); renderLegend(); pinAge = null;
+  if (popIdx !== null) openPop(popIdx);
+  updateUI();
+  const csEl = document.getElementById('citySearch');
+  if (csEl && document.activeElement !== csEl) csEl.value = cityLabel(CITIES[cityIdx]);
+}
+(() => {
+  const sel = $('lang');
+  LANGS.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = I18N[k].name; sel.appendChild(o); });
+  sel.value = LANG;
+  sel.onchange = () => { LANG = sel.value; try { localStorage.setItem('lang', LANG); } catch (_) {} applyLang(); };
+})();
+function loadRGB16(src) { // plate index map: R = high byte, G = low byte
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+      const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0);
+      const d = x.getImageData(0, 0, im.width, im.height).data, out = new Uint16Array(im.width * im.height);
+      for (let i = 0; i < out.length; i++) out[i] = d[i * 4] * 256 + d[i * 4 + 1];
+      res(out);
+    };
+    im.onerror = () => rej(new Error(src)); im.src = src;
+  });
+}
+function loadGray(src) {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+      const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0);
+      const rgba = x.getImageData(0, 0, im.width, im.height).data, out = new Uint8Array(im.width * im.height);
+      for (let i = 0; i < out.length; i++) out[i] = rgba[i * 4];
+      res(out);
+    };
+    im.onerror = () => rej(new Error(src)); im.src = src;
+  });
+}
+Promise.all([
+  fetch('earth-data.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+  loadGray('paleodem.png'), loadGray('plates0.png'),
+  fetch('sim.json').then(r => r.ok ? r.json() : null).catch(() => null),
+  fetch('cities.json').then(r => r.ok ? r.json() : null).catch(() => null),
+]).then(([d, atlas, plateIdx, sim, cities]) => {
+  if (cities) {
+    const cur = CITIES[cityIdx];
+    CITIES = cities.map(([names, country, lon, lat, pid]) => ({ names, name: names.ko, en: names.en, country, lon, lat, pid }));
+    const k = cur ? CITIES.findIndex(c => c.en === 'Seoul') : -1; cityIdx = k >= 0 ? k : null;
+  }
+  cs.value = cityLabel(CITIES[cityIdx]); updateCity();
+  fetch('hd/hd.json').then(r => r.ok ? r.json() : null).then(meta => {
+    if (!meta) return;
+    HD = { ...meta, pidx: null };
+    loadRGB16('hd/plates_hd.png').then(p => { HD.pidx = p; presentHD = null; if (age < 0 && wantHD()) drawTexture(); }).catch(() => {});
+    if (wantHD()) drawTexture();
+  }).catch(() => {});
+  if (sim) { SIM = decodeSim(sim); addSimEvents(); } else { setFuture('scotese'); }
+  DEM = { ...d.dem, atlas, plateIdx };
+  ROT = d.rot; polys = d.polys; polyPid = d.pids; polyGroup = d.pids.map(groupOf); polyCoast = d.coast || [];
+  const toVecs = list => list.map(poly => {
+    const a = new Float32Array(poly.length * 3);
+    poly.forEach(([lon, lat], i) => { const la = lat*D2R, lo = lon*D2R; a[i*3] = Math.cos(la)*Math.cos(lo); a[i*3+1] = Math.cos(la)*Math.sin(lo); a[i*3+2] = Math.sin(la); });
+    return a;
+  });
+  if (d.plates) { plateVecs = toVecs(d.plates.polys); platePid = d.plates.pid; plateCont = d.plates.cont || []; plateEdge = d.plates.edge || []; }
+  FUT_PROXY = d.futureProxy || {};
+  unitVecs = polys.map(poly => {
+    const a = new Float32Array(poly.length * 3);
+    poly.forEach(([lon, lat], i) => { const la = lat*D2R, lo = lon*D2R; a[i*3] = Math.cos(la)*Math.cos(lo); a[i*3+1] = Math.cos(la)*Math.sin(lo); a[i*3+2] = Math.sin(la); });
+    return a;
+  });
+  $('loading').hidden = true;
+  // face Asia/Korea at start
+  { const v = sphereXYZ(127, 30); view.spin = -Math.atan2(v.x, v.z); view.tilt = Math.asin(v.y) - 0.12; applyView(); }
+  setAge(0);
+}).catch(err => { $('loading').textContent = t('loadFail') + ' (' + err.message + ')'; });
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
