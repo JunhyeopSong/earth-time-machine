@@ -453,7 +453,7 @@ let GEO_EVENTS = [
   { age: 175, span: 10, lon: -72, lat: 39, pid: 101, kind: 'tectonic', title: '중앙 대서양이 열림', text: '북아메리카와 아프리카 사이에 해저 확장이 시작되어 진짜 바다가 생깁니다. 지금의 대서양이 이때 태어났습니다.' },
   { age: 150, span: 10, lon: 11.0, lat: 48.9, pid: 305, kind: 'fossil', title: '시조새 (졸른호펜, 독일)', text: '깃털과 이빨을 함께 가진 시조새 화석이 나온 석회암 지대입니다. 공룡에서 새로 이어지는 진화의 증거입니다.' },
   { age: 132, span: 10, lon: -51, lat: -25, pid: 201, kind: 'volcano', title: '파라나-에텐데카 화산', text: '브라질과 나미비아에 같은 용암 지대가 나뉘어 남아 있습니다. 남대서양이 열리기 직전의 화산 활동입니다.' },
-  { age: 105, span: 10, lon: 128.3, lat: 34.95, pid: 611, kind: 'fossil', title: '경남 고성 공룡 발자국', text: '백악기 호숫가였던 경상분지에 공룡과 익룡, 새의 발자국 수천 개가 남았습니다. 세계적인 공룡 발자국 산지입니다.' },
+  { age: 105, span: 10, lon: 128.3, lat: 34.95, pid: 611, kind: 'fossil', local: 'kr', title: '경남 고성 공룡 발자국', text: '백악기 호숫가였던 경상분지에 공룡과 익룡, 새의 발자국 수천 개가 남았습니다. 세계적인 공룡 발자국 산지입니다.' },
   { age: 88, span: 8, lon: 46, lat: -20, pid: 702, kind: 'tectonic', title: '인도가 마다가스카르에서 분리', text: '인도가 마다가스카르와 떨어져 1년에 15cm가 넘는 빠른 속도로 북쪽으로 이동하기 시작합니다.' },
   { age: 75, span: 7, lon: 103.7, lat: 44.1, pid: 628, kind: 'fossil', title: '고비 사막의 공룡들', text: '몽골 고비의 사암층에서 벨로키랍토르와 프로토케라톱스가 싸우던 모습 그대로 화석이 되었습니다.' },
   { age: 67, span: 5, lon: -105, lat: 47.5, pid: 101, kind: 'fossil', title: '티라노사우루스 (헬크릭층)', text: '북아메리카 서부의 헬크릭층에는 백악기 마지막 공룡인 티라노사우루스와 트리케라톱스가 남아 있습니다.' },
@@ -464,11 +464,11 @@ let GEO_EVENTS = [
   { age: 34, span: 6, lon: 0, lat: -80, pid: 802, kind: 'climate', title: '남극 빙상의 탄생', text: '이산화탄소가 줄고 남극 주변 바닷길이 열리면서 남극 대륙이 처음으로 두꺼운 얼음에 덮였습니다.' },
   { age: 30, span: 5, lon: -68, lat: -54, pid: 291, kind: 'tectonic', title: '드레이크 해협이 열림', text: '남아메리카와 남극이 떨어지면서 남극을 한 바퀴 도는 해류가 생겨 남극을 더 차갑게 고립시켰습니다.' },
   { age: 25, span: 6, lon: 41, lat: 12, pid: 709, kind: 'tectonic', title: '홍해와 동아프리카 열곡', text: '아라비아가 아프리카에서 떨어져 나가며 홍해가 열리고, 아프리카 동쪽이 찢어지는 열곡이 생겼습니다.' },
-  { age: 17, span: 5, lon: 138, lat: 37, pid: 610, kind: 'tectonic', title: '동해가 열리고 일본이 떨어져 나감', text: '아시아 대륙 가장자리가 갈라지며 동해가 생기고, 일본 열도가 지금 위치로 밀려났습니다.' },
+  { age: 17, span: 5, lon: 138, lat: 37, pid: 610, kind: 'tectonic', local: 'ea', title: '동해가 열리고 일본이 떨어져 나감', text: '아시아 대륙 가장자리가 갈라지며 동해가 생기고, 일본 열도가 지금 위치로 밀려났습니다.' },
   { age: 6, span: 3, lon: 14, lat: 37.5, pid: 307, kind: 'climate', title: '지중해가 말라붙음', text: '지브롤터가 막히면서 지중해가 거의 말라 두꺼운 소금층이 쌓였습니다(메시나절 염분 위기). 약 533만 년 전 대서양 물이 다시 들어옵니다.' },
   { age: 3, span: 2, lon: -80, lat: 9, pid: 230, kind: 'tectonic', title: '파나마 지협 형성', text: '남북 아메리카가 이어지며 대서양과 태평양의 해류가 갈라졌고, 동물들이 두 대륙을 오갔습니다.' },
   { age: 3.2, span: 1.6, lon: 40.5, lat: 11.1, pid: 716, kind: 'human', title: '루시 (오스트랄로피테쿠스)', text: '에티오피아 아파르에서 발견된 두 발로 걸은 초기 인류 화석입니다.' },
-  { age: 1.8, span: 1.4, lon: 126.55, lat: 33.38, pid: 611, kind: 'volcano', title: '제주도 화산 활동 시작', text: '해저 화산 분출로 제주도가 만들어지기 시작했습니다. 한라산은 수십만 년 전 이후의 분출로 높아졌습니다.' },
+  { age: 1.8, span: 1.4, lon: 126.55, lat: 33.38, pid: 611, kind: 'volcano', local: 'kr', title: '제주도 화산 활동 시작', text: '해저 화산 분출로 제주도가 만들어지기 시작했습니다. 한라산은 수십만 년 전 이후의 분출로 높아졌습니다.' },
   { age: 0.3, span: 1.2, lon: -8.87, lat: 31.86, pid: 707, kind: 'human', title: '호모 사피엔스 등장', text: '모로코 제벨 이르후드에서 약 30만 년 전 현생 인류 화석이 나왔습니다.' },
   { age: -10, span: 6, lon: 37, lat: 0, pid: 709, kind: 'future', only: 'scotese', title: '동아프리카에 새 바다', text: '동아프리카 열곡이 계속 벌어져 바닷물이 들어오고, 소말리아 쪽 땅덩어리가 떨어져 나갈 것으로 예상됩니다.' },
   { age: -50, span: 12, lon: 18, lat: 35, pid: 715, kind: 'future', only: 'scotese', title: '지중해가 닫힘', text: '아프리카가 유럽과 부딪혀 지중해가 사라지고, 그 자리에 히말라야 같은 산맥이 솟을 것으로 예측됩니다.' },
@@ -581,7 +581,7 @@ function qMatrix(q) { // 3x3 rotation matrix from unit quaternion
 // ---------- data ----------
 let polys = [], unitVecs = [], polyPid = [], polyGroup = [], polyCoast = [];
 let plateVecs = [], platePid = [], plateCont = [], plateEdge = []; // PALEOMAP static plate polygons (the real plate pieces)
-let age = 0, mode = 'terrain', cityIdx = 0, playing = false, tempUnit = 'C';
+let age = 0, mode = 'terrain', cityIdx = null, playing = false, tempUnit = 'C';
 // PaleoDEM: atlas of 1° grids (360 x 181 each), one per 5 Myr from 0 to 250 Ma
 let DEM = null; // { ages, w, h, atlas: Uint8Array, plateIdx: Uint8Array, plates: [] }
 
@@ -1208,6 +1208,7 @@ function spread() { const a = [...pts.values()]; return a.length < 2 ? 0 : Math.
 // the geographic point (globe frame) that is held under the cursor / finger centroid
 function grab(c) { const h = hitSphere(c.x, c.y); anchor = h ? earth.worldToLocal(h) : null; last = c; }
 cvs.addEventListener('pointerdown', e => {
+  view.touched = true;
   try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   stopAuto(); tween = null; vel = { spin: 0, tilt: 0 }; samples = [];
@@ -1318,7 +1319,15 @@ const pinsEl = document.getElementById('pins');
 Object.keys(FX).forEach((k, i) => { FX[k].i = i; });
 GEO_EVENTS.forEach((e, i) => { if (i < 24) e.i = i; if (FX[e.title]) e.fx = FX[e.title]; });
 let pinEls = [];
-const evActive = e => (!e.only || e.only === futureMode) && e.age >= -FUT_MAX;
+// where the viewer is: country from the device location if allowed, else guessed from the time zone
+const TZ_COUNTRY = { 'Asia/Seoul': 'South Korea', 'Asia/Pyongyang': 'North Korea', 'Asia/Tokyo': 'Japan', 'Asia/Shanghai': 'China',
+  'Asia/Chongqing': 'China', 'Asia/Harbin': 'China', 'Asia/Urumqi': 'China', 'Asia/Hong_Kong': 'China', 'Asia/Macau': 'China',
+  'Asia/Taipei': 'Taiwan', 'Asia/Ulaanbaatar': 'Mongolia' };
+let viewerCountry = (() => { try { return TZ_COUNTRY[Intl.DateTimeFormat().resolvedOptions().timeZone] || null; } catch (_) { return null; } })();
+const LOCAL_SETS = { kr: ['South Korea'], ea: ['South Korea', 'North Korea', 'Japan', 'China', 'Taiwan', 'Mongolia'] };
+const isLocalTo = tag => !!viewerCountry && LOCAL_SETS[tag].includes(viewerCountry);
+// regional events (e.g. Goseong, Jeju) appear only for viewers in that region
+const evActive = e => (!e.only || e.only === futureMode) && e.age >= -FUT_MAX && (!e.local || isLocalTo(e.local));
 function buildPins() {
   pinsEl.innerHTML = '';
   pinEls = GEO_EVENTS.map((e, i) => {
@@ -1776,9 +1785,26 @@ Promise.all([
   if (cities) {
     const cur = CITIES[cityIdx];
     CITIES = cities.map(([names, country, lon, lat, pid]) => ({ names, name: names.ko, en: names.en, country, lon, lat, pid }));
-    const k = cur ? CITIES.findIndex(c => c.en === 'Seoul') : -1; cityIdx = k >= 0 ? k : null;
+    cityIdx = null;
   }
   cs.value = cityLabel(CITIES[cityIdx]); updateCity();
+  // start tracking the city nearest to the viewer; leave it empty if the location is unavailable
+  if (cities && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(pos => {
+      const la = pos.coords.latitude * D2R, lo = pos.coords.longitude * D2R;
+      let best = -1, bd = Infinity;
+      CITIES.forEach((c, i) => {
+        const cl = c.lat * D2R, co = c.lon * D2R;
+        const d = Math.acos(Math.min(1, Math.sin(la) * Math.sin(cl) + Math.cos(la) * Math.cos(cl) * Math.cos(co - lo)));
+        if (d < bd) { bd = d; best = i; }
+      });
+      if (best < 0 || cityIdx !== null) return;            // the viewer already picked a city
+      viewerCountry = CITIES[best].country;
+      cityIdx = best; cs.value = cityLabel(CITIES[best]); updateCity();
+      pinAge = null; buildPins(); buildEvDots();
+      if (!view.touched) { stopAuto(); aimAtCity(); }
+    }, () => {}, { enableHighAccuracy: false, timeout: 10000, maximumAge: 3600000 });
+  }
   fetch('hd/hd.json').then(r => r.ok ? r.json() : null).then(meta => {
     if (!meta) return;
     HD = { ...meta, pidx: null };
@@ -1802,7 +1828,7 @@ Promise.all([
   });
   $('loading').hidden = true;
   // face Asia/Korea at start
-  { const v = sphereXYZ(127, 30); view.spin = -Math.atan2(v.x, v.z); view.tilt = Math.asin(v.y) - 0.12; applyView(); }
+  { const lon = Math.max(-180, Math.min(180, -new Date().getTimezoneOffset() / 4)); const v = sphereXYZ(lon, 28); view.spin = -Math.atan2(v.x, v.z); view.tilt = Math.asin(v.y) - 0.12; applyView(); }
   setAge(0);
 }).catch(err => { $('loading').textContent = t('loadFail') + ' (' + err.message + ')'; });
 requestAnimationFrame(loop);
