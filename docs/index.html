@@ -1565,7 +1565,7 @@ $('seams').onchange = () => drawTexture();
 const cs = $('citySearch'), cl = $('cityList');
 let csHits = [], csSel = -1;
 function cityLabel(c) { return cityName(c); }
-function setCity(i) { cityIdx = i; cs.value = cityLabel(CITIES[i]); closeList(); updateCity(); if (i !== null) { stopAuto(); aimAtCity(); } }
+function setCity(i) { cityIdx = i; cityFromTZ = false; cs.value = cityLabel(CITIES[i]); closeList(); updateCity(); if (i !== null) { stopAuto(); aimAtCity(); } }
 document.body.appendChild(cl);                           // float above the sheet instead of pushing its content
 function placeList() {
   const g = cs.closest('.group').getBoundingClientRect(), r = cs.closest('.combo').getBoundingClientRect();
@@ -1611,7 +1611,7 @@ cs.addEventListener('keydown', e => {
   else if (e.key === 'Escape') { closeList(); cs.blur(); }
 });
 $('cityLocate').onclick = () => locateViewer(true);
-$('cityClear').onclick = () => { cityIdx = null; cs.value = ''; closeList(); updateCity(); };
+$('cityClear').onclick = () => { cityIdx = null; cityFromTZ = false; cs.value = ''; closeList(); updateCity(); };
 
 // ---- global mean temperature card ----
 function gmstAt(a) {                                     // linear between stage midpoints
@@ -1758,7 +1758,29 @@ function applyLang() {
   sel.onchange = () => { LANG = sel.value; try { localStorage.setItem('lang', LANG); } catch (_) {} applyLang(); };
 })();
 // ---------- nearest city from the device location ----------
-let locBusy = false;
+let locBusy = false, cityFromTZ = false;   // cityFromTZ: the field holds the rough time-zone guess
+// rough city from the device time zone (e.g. Asia/Seoul → Seoul); no permission, nothing sent anywhere
+const TZ_ALIAS = { 'Asia/Saigon': 'Ho Chi Minh City', 'Asia/Ho_Chi_Minh': 'Ho Chi Minh City', 'Asia/Katmandu': 'Kathmandu',
+  'Asia/Rangoon': 'Yangon', 'Asia/Calcutta': 'Kolkata', 'Asia/Chungking': 'Chongqing', 'Asia/Kuwait': 'Kuwait City', 'Asia/Qatar': 'Doha',
+  'Asia/Bahrain': 'Manama', 'Asia/Brunei': 'Bandar Seri Begawan', 'Asia/Ujung_Pandang': 'Makassar', 'America/New_York': 'New York City',
+  'America/St_Johns': "St. John's", 'America/Puerto_Rico': 'San Juan', 'America/Costa_Rica': 'San Jose', 'America/El_Salvador': 'San Salvador',
+  'America/Guatemala': 'Guatemala City', 'America/Jamaica': 'Kingston', 'America/Bahia': 'Salvador', 'America/Mazatlan': null,
+  'Australia/NSW': 'Sydney', 'Australia/ACT': 'Canberra', 'Australia/Queensland': 'Brisbane', 'Australia/West': 'Perth',
+  'Australia/South': 'Adelaide', 'Australia/North': 'Darwin', 'Australia/Tasmania': 'Hobart', 'Pacific/Guam': 'Hagåtña',
+  'Pacific/Fiji': 'Suva', 'Pacific/Tahiti': 'Papeete', 'Pacific/Tongatapu': "Nuku'alofa", 'Pacific/Apia': 'Apia', 'Pacific/Port_Moresby': 'Port Moresby',
+  'Europe/Kiev': 'Kyiv', 'Europe/Kyiv': 'Kyiv', 'Europe/Malta': 'Valletta', 'Europe/Tirane': 'Tirana', 'Asia/Kamchatka': 'Petropavlovsk-Kamchatsky',
+  'Asia/Sakhalin': 'Yuzhno-Sakhalinsk', 'Africa/Asmera': 'Asmara', 'Africa/El_Aaiun': 'Laayoune' };
+const normName = x => String(x).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[.']/g, '');
+function cityFromTimeZone() {
+  let tz; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (_) { return -1; }
+  if (!tz || !tz.includes('/')) return -1;
+  const want = tz in TZ_ALIAS ? TZ_ALIAS[tz] : tz.split('/').pop().replace(/_/g, ' ');
+  if (!want) return -1;
+  const q = normName(want);
+  let k = CITIES.findIndex(c => normName(c.en || '') === q);                      // English name first (list is by population)
+  if (k < 0) k = CITIES.findIndex(c => c.names && Object.values(c.names).some(v => normName(v) === q));
+  return k;
+}
 function nearestCity(latDeg, lonDeg) {
   const la = latDeg * D2R, lo = lonDeg * D2R;
   let best = -1, bd = Infinity;
@@ -1779,7 +1801,8 @@ function locateViewer(manual) {
   const ok = pos => {
     done();
     const best = nearestCity(pos.coords.latitude, pos.coords.longitude);
-    if (best < 0 || (!manual && cityIdx !== null)) return;
+    if (best < 0 || (!manual && cityIdx !== null && !cityFromTZ)) return;
+    cityFromTZ = false;
     viewerCountry = CITIES[best].country;
     cityIdx = best; cs.value = cityLabel(CITIES[best]); updateCity(); setLocMsg('');
     pinAge = null; buildPins(); buildEvDots();
@@ -1840,6 +1863,14 @@ Promise.all([
     cityIdx = null;
   }
   cs.value = cityLabel(CITIES[cityIdx]); updateCity();
+  // rough guess from the time zone right away, then refine with the device location if it is available
+  if (cities && cityIdx === null) {
+    const k = cityFromTimeZone();
+    if (k >= 0) {
+      cityIdx = k; cityFromTZ = true; viewerCountry = CITIES[k].country;
+      cs.value = cityLabel(CITIES[k]); updateCity(); pinAge = null; buildPins(); buildEvDots();
+    }
+  }
   locateViewer(false);
 
   fetch('hd/hd.json').then(r => r.ok ? r.json() : null).then(meta => {
@@ -1866,6 +1897,7 @@ Promise.all([
   $('loading').hidden = true;
   // face Asia/Korea at start
   { const lon = Math.max(-180, Math.min(180, -new Date().getTimezoneOffset() / 4)); const v = sphereXYZ(lon, 28); view.spin = -Math.atan2(v.x, v.z); view.tilt = Math.asin(v.y) - 0.12; applyView(); }
+  if (marker.visible) { const m = marker.position.clone().normalize(); view.spin = -Math.atan2(m.x, m.z); view.tilt = Math.asin(m.y) - 0.12; applyView(); }
   setAge(0);
 }).catch(err => { $('loading').textContent = t('loadFail') + ' (' + err.message + ')'; });
 requestAnimationFrame(loop);
