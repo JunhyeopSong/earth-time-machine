@@ -229,7 +229,8 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
   .row1 .spacer { display: none; }
   .row1 { flex-wrap: wrap; }
   .row1 .tchip { margin-left: auto; border-right: 0; padding-right: 2px; }
-  .row1 .tchip .tl { font-size: 9.5px; }
+  .row1 .tchip .tl { display: none; }   /* value only on phones; full label in its tooltip */
+  .row1 .tchip { flex-direction: row; align-items: center; }
   .transport { gap: 0; padding: 3px; }
   .transport .seg button { padding: 4px 6px; font-size: 11.5px; }
   .play { width: 34px; height: 34px; }
