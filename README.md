@@ -10,10 +10,10 @@
 
 ## English
 
-An interactive 3D globe that shows how Earth's continents moved — from the supercontinent Pangaea 250 million years ago to 100 million years in the future — built on published plate-tectonic and paleo-elevation data.
+An interactive 3D globe that shows how Earth's continents moved — from the Cambrian 540 million years ago, through the supercontinent Pangaea, to 100 million years in the future — built on published plate-tectonic and paleo-elevation data.
 
 ### Features
-- **Travel through time** — drag the timeline, play at three speeds, or jump straight to a geologic period (Triassic → Quaternary).
+- **Travel through time** — drag the timeline, play at three speeds, or jump straight to landmark moments such as the big five mass extinctions. Hover a period band to see its name.
 - **Real paleogeography** — 0.25° paleo-elevation maps (PaleoDEM) every 5 million years, with the coastlines and sea level of each age.
 - **Plate motions** — every landmass moves with its plate in the PALEOMAP model; optional plate-boundary and present-day-coastline overlays.
 - **Major events on the map** — the Chicxulub impact, the Siberian and Deccan Traps, the first dinosaurs, India hitting Asia and more, many with animated map effects.
@@ -55,10 +55,10 @@ Then open http://localhost:8000.
 
 ## 한국어
 
-2억 5천만 년 전 초대륙 판게아부터 1억 년 뒤 미래까지, 대륙이 어떻게 움직여 왔고 움직일지를 3D 지구본에서 돌려보는 웹 시뮬레이터입니다. 실제 연구에 쓰이는 판 운동·고지형 데이터를 바탕으로 만들었습니다.
+5억 4천만 년 전 캄브리아기부터 초대륙 판게아를 거쳐 1억 년 뒤 미래까지, 대륙이 어떻게 움직여 왔고 움직일지를 3D 지구본에서 돌려보는 웹 시뮬레이터입니다. 실제 연구에 쓰이는 판 운동·고지형 데이터를 바탕으로 만들었습니다.
 
 ### 기능
-- **시간 여행** — 타임라인을 끌거나, 세 가지 속도로 재생하거나, 지질시대(트라이아스기 ~ 제4기)로 바로 이동할 수 있습니다.
+- **시간 여행** — 타임라인을 끌거나, 세 가지 속도로 재생하거나, 5대 대멸종 같은 주요 사건으로 바로 이동할 수 있습니다. 시대 색 띠에 마우스를 올리면 시대 이름이 보입니다.
 - **실제 고지리** — 500만 년 간격의 0.25° 고지형 지도(PaleoDEM)로 그 시대의 해안선과 해수면을 보여줍니다.
 - **판 이동** — 모든 땅이 PALEOMAP 판 모델에 따라 자기 판과 함께 움직입니다. 판 조각 경계와 현재 해안선 윤곽을 겹쳐 볼 수 있습니다.
 - **지도 위 주요 사건** — 칙술루브 소행성 충돌, 시베리아·데칸 트랩, 최초의 공룡, 인도-아시아 충돌 등. 상당수는 지도 위 애니메이션 효과가 있습니다.
