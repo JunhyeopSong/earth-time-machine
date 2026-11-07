@@ -172,11 +172,10 @@ button:focus-visible, select:focus-visible, input:focus-visible + .tr { outline:
 .step:hover { background: rgba(255,255,255,0.1); }
 .track { position: relative; height: 22px; margin: 0 2px 0 8px; }
 .strata { position: absolute; left: 0; right: 0; top: 7px; height: 8px; display: flex; z-index: 0; pointer-events: none; } /* own stacking layer under the slider, so a raised (hovered) band never takes the click */
-.strata div { height: 100%; position: relative; transition: transform .15s, opacity .15s, filter .15s, box-shadow .15s; }
+.strata div { height: 100%; position: relative; transition: transform .15s, opacity .15s, filter .15s; }
 .strata div:first-child { border-radius: 4px 0 0 4px; } .strata div:last-child { border-radius: 0 4px 4px 0; }
 .strata.hovering div:not(.hov) { opacity: .45; }
-.strata div.hov { transform: scaleY(1.75); border-radius: 3px; filter: brightness(1.25); z-index: 1;
-  box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(255,255,255,.35); }
+.strata div.hov { transform: scaleY(1.4); border-radius: 3px; filter: brightness(1.25); z-index: 1; }
 .tltip { position: absolute; bottom: 27px; left: 0; z-index: 4; display: flex; align-items: center; gap: 6px; white-space: nowrap; pointer-events: none;
   padding: 5px 10px; border-radius: 10px; font-size: 12px; background: rgba(20,24,36,.97); border: .5px solid rgba(255,255,255,.22);
   box-shadow: 0 6px 18px rgba(0,0,0,.5); transform: translateX(-50%); }
