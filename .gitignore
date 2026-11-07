@@ -1,8 +1,11 @@
 # raw downloads used to build the data (large, re-downloadable)
+.DS_Store
+testbuild/
 data_raw/
+dl_city/
 dl_dem/
 dl_hd/
 dl_sp/
 dl_temp/
-dl_city/
-.DS_Store
+promo/
+__pycache__/
