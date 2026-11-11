@@ -88,8 +88,17 @@ button:focus-visible, select:focus-visible, input:focus-visible + .tr { outline:
 
 /* settings popover */
 .sheet { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 60px);
-  width: min(300px, calc(100vw - 32px)); max-height: calc(100% - 210px); overflow-y: auto; border-radius: var(--r-panel); padding: var(--pad-panel);
-  display: grid; gap: var(--pad-panel); background: var(--glass-solid); z-index: 4; }
+  width: min(300px, calc(100vw - 32px)); max-height: calc(100% - 210px); overflow: hidden; border-radius: var(--r-panel);
+  display: flex; flex-direction: column; background: var(--glass-solid); z-index: 4; }
+.sheet[hidden] { display: none; }
+.sheet-in { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: var(--pad-panel); display: grid; gap: var(--pad-panel); }
+/* more settings above / below: that edge fades out and the rows there soften (same idea as the shortcut chips) */
+.sheet-in.more-b { -webkit-mask-image: linear-gradient(#000 calc(100% - 44px), rgba(0,0,0,.12)); mask-image: linear-gradient(#000 calc(100% - 44px), rgba(0,0,0,.12)); }
+.sheet-in.more-t { -webkit-mask-image: linear-gradient(rgba(0,0,0,.12), #000 44px); mask-image: linear-gradient(rgba(0,0,0,.12), #000 44px); }
+.sheet-in.more-t.more-b { -webkit-mask-image: linear-gradient(rgba(0,0,0,.12), #000 44px, #000 calc(100% - 44px), rgba(0,0,0,.12));
+  mask-image: linear-gradient(rgba(0,0,0,.12), #000 44px, #000 calc(100% - 44px), rgba(0,0,0,.12)); }
+.sheet-in .item, .sheet-in .legend, .sheet-in .foot { transition: filter .2s; }
+.sheet-in .soft { filter: blur(1px); }
 .sheet .group { background: var(--fill); border-radius: var(--r-inner); padding: 2px 12px; display: grid; }
 .sheet .item { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; font-size: 13.5px; padding-block: 4px; }
 .sheet .item > span:first-child { min-width: 0; }
@@ -303,7 +312,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
   <button class="glass icon" id="gear" data-i18n-aria="settings" data-i18n-title="settings" aria-label="보기 설정" aria-expanded="false" aria-controls="sheet" title="보기 설정">
     <!-- icons: Lucide (lucide.dev, ISC license) --><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><line x1="21" x2="14" y1="4" y2="4" /><line x1="10" x2="3" y1="4" y2="4" /><line x1="21" x2="12" y1="12" y2="12" /><line x1="8" x2="3" y1="12" y2="12" /><line x1="21" x2="16" y1="20" y2="20" /><line x1="12" x2="3" y1="20" y2="20" /><line x1="14" x2="14" y1="2" y2="6" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="16" x2="16" y1="18" y2="22" /></svg>
   </button>
-  <section class="glass sheet" id="sheet" data-i18n-aria="settings" aria-label="보기 설정" hidden>
+  <section class="glass sheet" id="sheet" data-i18n-aria="settings" aria-label="보기 설정" hidden><div class="sheet-in" id="sheetIn">
     <div class="group">
       <label class="item" for="lang"><span data-i18n="lang">언어</span><select id="lang"></select></label>
     </div>
@@ -341,7 +350,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border: 0; bord
     <div class="legend" id="legend"></div>
     <div class="foot" id="foot">출처 · 과거 지형·해안선: <a href="https://zenodo.org/records/5460860" target="_blank" rel="noopener">PALEOMAP PaleoDEM</a> (Scotese &amp; Wright 2018, CC BY 4.0), 500만 년 간격 지도를 이어 붙임. 판 이동·판 조각: PALEOMAP 판 모델과 판 다각형 (<a href="https://doi.org/10.5281/zenodo.10596609" target="_blank" rel="noopener">Scotese PaleoAtlas</a>, CC BY 4.0), <a href="https://gws.gplates.org" target="_blank" rel="noopener">GPlates Web Service</a>. 미래(1억 년 후까지)는 Scotese의 판 운동 예측을 따르고, 충돌·섭입에 따른 지형 높낮이(산맥, 침식, 분지, 해구)는 단순한 규칙으로 계산한 예상입니다. 미래 바다의 해저 지형은 표시하지 않습니다. 평균 기온: PhanDA 지구 평균 지표 기온 복원(<a href="https://doi.org/10.1126/science.adk3705" target="_blank" rel="noopener">Judd et al. 2024, Science</a>), 지질시대 구간 중앙값을 선형 보간. 도시: <a href="https://www.naturalearthdata.com" target="_blank" rel="noopener">Natural Earth</a>(퍼블릭 도메인).</div>
     <div class="foot fb"><span data-i18n="feedback">피드백·오류 제보</span>: <a href="mailto:sapu0000@gmail.com">sapu0000@gmail.com</a><a class="gh" href="https://github.com/JunhyeopSong/earth-time-machine/issues/new" target="_blank" rel="noopener" data-i18n-aria="feedbackGithub" data-i18n-title="feedbackGithub" aria-label="GitHub에 이슈 남기기" title="GitHub에 이슈 남기기"><svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg></a></div>
-  </section>
+  </div></section>
 
   <nav class="glass nav" data-i18n-aria="globeCtl" aria-label="지구본 조작">
     <button id="zIn" data-i18n-aria="zoomIn" data-i18n-title="zoomIn" aria-label="확대" title="확대"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ><path d="M5 12h14" /><path d="M12 5v14" /></svg></button>
@@ -1670,7 +1679,22 @@ function setFuture(m) {
 }
 $('coast').onchange = () => drawTexture();
 const sheet = $('sheet'), gear = $('gear');
-gear.onclick = e => { e.stopPropagation(); sheet.hidden = !sheet.hidden; gear.setAttribute('aria-expanded', !sheet.hidden); if (sheet.hidden) closeList(); };
+gear.onclick = e => { e.stopPropagation(); sheet.hidden = !sheet.hidden; gear.setAttribute('aria-expanded', !sheet.hidden); if (sheet.hidden) closeList(); else sheetEdges(); };
+function sheetEdges() {                               // fade/soften the top or bottom edge while more settings lie beyond it
+  const el = $('sheetIn'); if (sheet.hidden) return;
+  const tp = el.scrollTop > 2, bt = el.scrollTop + el.clientHeight < el.scrollHeight - 2;
+  el.classList.toggle('more-t', tp); el.classList.toggle('more-b', bt);
+  const r = el.getBoundingClientRect();
+  el.querySelectorAll('.item, .legend, .foot').forEach(n => {
+    const b = n.getBoundingClientRect();
+    n.classList.toggle('soft', b.height < 64 && ((tp && b.top < r.top + 22) || (bt && b.bottom > r.bottom - 22))); // tall text blocks only fade
+  });
+}
+$('sheetIn').addEventListener('scroll', sheetEdges, { passive: true });
+if (window.ResizeObserver) {                       // also when the content itself changes size (fonts, language, city list)
+  const ro = new ResizeObserver(sheetEdges); ro.observe($('sheetIn')); [...$('sheetIn').children].forEach(c => ro.observe(c));
+} else addEventListener('resize', sheetEdges);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { sheetEdges(); chipEdges(); });
 document.addEventListener('pointerdown', e => { if (!sheet.hidden && !sheet.contains(e.target) && !gear.contains(e.target) && !$('cityList').contains(e.target)) { sheet.hidden = true; gear.setAttribute('aria-expanded', false); closeList(); } });
 addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) { sheet.hidden = true; gear.setAttribute('aria-expanded', false); closeList(); } });
 $('seams').onchange = () => drawTexture();
