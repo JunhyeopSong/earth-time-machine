@@ -1082,32 +1082,61 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.62));
 const sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(-2, 1.5, 3);
 camera.add(sun); scene.add(camera);
 
-// stars: three depth layers. They turn with the globe when it is dragged, and while time moves they slide sideways
-// (left toward the future, right toward the past), the nearer layers faster, so the flow of time has depth.
-const STAR_LAYERS = [                      // radius range, count, point size, colour, drift (rad per Myr)
-  { r0: 38, r1: 50, n: 1000, size: 0.08, color: 0x8f9cbc, k: 0.010 },
-  { r0: 24, r1: 32, n: 560, size: 0.075, color: 0xaab8d6, k: 0.022 },
-  { r0: 14, r1: 19, n: 240, size: 0.07, color: 0xd2dcf0, k: 0.045 },
+// stars: a far-away sky. It turns only a little when the globe is dragged (so it reads as distant), and while time
+// moves it wheels slowly around a celestial pole, like star trails seen from Earth: counter-clockwise toward the
+// future, clockwise toward the past. Three brightness layers turn at slightly different rates for a hint of depth.
+const sky = new THREE.Group(); scene.add(sky);
+const SKY_FOLLOW = 0.22;                    // share of the globe's drag rotation the sky follows
+const celestial = new THREE.Group(); sky.add(celestial);
+const starDot = (() => {                    // soft round dot, so stars are not square sprites
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.85)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c);
+})();
+const STAR_LAYERS = [                      // count, point size (CSS px), colour, drift (rad per Myr)
+  { n: 1700, px: 1.5, color: 0x8794b4, k: 0.005 },
+  { n: 520, px: 2.1, color: 0xaab8d6, k: 0.008 },
+  { n: 180, px: 2.8, color: 0xdde5f5, k: 0.011 },
 ].map(L => {
   const pos = new Float32Array(L.n * 3);
   for (let i = 0; i < L.n; i++) {
-    const u = Math.random()*2-1, th = Math.random()*Math.PI*2, r = L.r0 + Math.random()*(L.r1 - L.r0), s = Math.sqrt(1-u*u);
+    const u = Math.random()*2-1, th = Math.random()*Math.PI*2, r = 60 + Math.random()*25, s = Math.sqrt(1-u*u);
     pos.set([r*s*Math.cos(th), r*u, r*s*Math.sin(th)], i*3);
   }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: L.color, size: L.size, sizeAttenuation: true }));
-  earth.add(pts); return { pts, k: L.k };
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: L.color, size: L.px * renderer.getPixelRatio(), sizeAttenuation: false, map: starDot, transparent: true, depthWrite: false }));
+  celestial.add(pts); return { pts, k: L.k };
 });
+let skySpin = 0, skyTilt = 0, skyPrev = null, poleSet = false;
+const qSX = new THREE.Quaternion(), qSY = new THREE.Quaternion();
+function followSky() {                      // a fraction of the globe's rotation, so the stars feel much farther away
+  if (skyPrev === null) skyPrev = { spin: view.spin, tilt: view.tilt };
+  const ds = wrapA(view.spin - skyPrev.spin), dt = view.tilt - skyPrev.tilt;
+  if (Math.abs(ds) < 0.5) skySpin += ds * SKY_FOLLOW;          // instant jumps (start-up placement) are not motion
+  if (Math.abs(dt) < 0.5) skyTilt = Math.max(-0.4, Math.min(0.4, skyTilt + dt * SKY_FOLLOW));
+  skyPrev.spin = view.spin; skyPrev.tilt = view.tilt;
+  qSX.setFromAxisAngle(AX, skyTilt); qSY.setFromAxisAngle(AY, skySpin);
+  sky.quaternion.copy(qSX).multiply(qSY);
+  if (!poleSet) {                           // put the celestial pole at a point in the upper left of the first view
+    poleSet = true; sky.updateMatrixWorld();
+    const ray = new THREE.Vector3(-0.56, 0.62, 0.5).unproject(camera).sub(camera.position).normalize();
+    const dir = camera.position.clone().addScaledVector(ray, 72).normalize();
+    dir.applyQuaternion(sky.quaternion.clone().invert());
+    celestial.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  }
+}
 const calmMotion = matchMedia('(prefers-reduced-motion: reduce)');
 let starRate = 0, starAge = null;          // smoothed Myr/s toward the future (negative = toward the past)
 function driftStars(dt) {
+  followSky();
   if (starAge === null) starAge = age;
   let d = starAge - age; starAge = age;
   if (Math.abs(d) > 4) d = 0;               // a jump (shortcut chip, event) is not a flow
   const want = dt > 0 ? Math.max(-6, Math.min(6, d / dt)) : 0;
-  starRate += (want - starRate) * Math.min(1, dt * 2.5);
+  starRate += (want - starRate) * Math.min(1, dt * 2);
   if (calmMotion.matches || Math.abs(starRate) < 1e-4) return;
-  for (const L of STAR_LAYERS) L.pts.rotation.y += starRate * L.k * dt;
+  for (const L of STAR_LAYERS) L.pts.rotation.y -= starRate * L.k * dt;
 }
 
 // city marker
