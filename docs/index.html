@@ -1476,6 +1476,7 @@ const sheet = $('sheet'), gear = $('gear');
 const sheetEdges = TMUI.edgeFade($('sheetIn'), { axis: 'y', zone: 22, maxSize: 64, when: () => !sheet.hidden,
   items: () => $('sheetIn').querySelectorAll('.item, .legend, .foot') });
 TMUI.popover(gear, sheet, { ignore: [$('cityList')], onOpen: sheetEdges, onClose: () => closeList() });
+if (TMUI.switcher) TMUI.switcher({ current: 'continents', lang: () => LANG });   // other time machines: the grid button left of settings (time-machine-ui)
 $('seams').onchange = () => drawTexture();
 // ---- city search (time-machine-ui TMUI.citySearch) ----
 const cs = $('citySearch'), cl = $('cityList');
