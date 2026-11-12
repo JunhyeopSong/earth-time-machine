@@ -31,6 +31,9 @@
 .sheet .item .seg { flex: none; }
 .sheet .item .seg button { white-space: nowrap; }
 .sheet .item > span:first-child { min-width: 0; }
+/* language select: own chevron with the same inset as the city field's icons, and the same width so the column lines up */
+.sheet select { -webkit-appearance: none; appearance: none; flex: 0 1 150px; min-width: 0; padding: 5px 28px 5px 8px;
+  background: var(--fill-2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-opacity='.6' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center / 13px; }
 .sheet .item.off { opacity: .4; pointer-events: none; }
 body.mapview .cityTag::before { content: ''; position: absolute; left: -10px; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
   border-radius: 50%; background: #ff4d3d; box-shadow: 0 0 0 2px #fff; }
@@ -76,6 +79,16 @@ body.mapview .cityTag::before { content: ''; position: absolute; left: -10px; to
       <label class="item" for="lang"><span data-i18n="lang">언어</span><select id="lang"></select></label>
     </div>
     <div class="group">
+      <div class="item"><span data-i18n="view">보기</span>
+        <div class="seg" id="viewSeg" role="radiogroup" data-i18n-aria="view" aria-label="보기">
+          <button role="radio" data-v="globe" data-i18n="viewGlobe" aria-checked="true">지구본</button>
+          <button role="radio" data-v="map" data-i18n="viewMap" aria-checked="false">전체 지도</button>
+        </div>
+      </div>
+      <label class="item"><span data-i18n="spin">자동 회전</span><span class="sw"><input type="checkbox" role="switch" id="spin" checked><span class="tr"></span></span></label>
+      <label class="item"><span data-i18n="axis">자전축</span><span class="sw"><input type="checkbox" role="switch" id="axis"><span class="tr"></span></span></label>
+    </div>
+    <div class="group">
       <div class="item city">
         <span data-i18n="track">위치 추적</span>
         <div class="combo">
@@ -90,24 +103,15 @@ body.mapview .cityTag::before { content: ''; position: absolute; left: -10px; to
     <div class="group">
       <label class="item"><span data-i18n="events">사건 주석</span><span class="sw"><input type="checkbox" role="switch" id="evts" checked><span class="tr"></span></span></label>
       <label class="item"><span><span data-i18n="follow">재생 중 따라가기</span><small data-i18n="followSub">사건이 일어나는 곳으로 이동</small></span><span class="sw"><input type="checkbox" role="switch" id="follow" checked><span class="tr"></span></span></label>
-      <label class="item"><span data-i18n="spin">자동 회전</span><span class="sw"><input type="checkbox" role="switch" id="spin" checked><span class="tr"></span></span></label>
     </div>
     <div class="group">
-      <div class="item"><span data-i18n="view">보기</span>
-        <div class="seg" id="viewSeg" role="radiogroup" data-i18n-aria="view" aria-label="보기">
-          <button role="radio" data-v="globe" data-i18n="viewGlobe" aria-checked="true">지구본</button>
-          <button role="radio" data-v="map" data-i18n="viewMap" aria-checked="false">전체 지도</button>
-        </div>
-      </div>
+      <label class="item"><span data-i18n="paleoNames">대륙·바다 이름</span><span class="sw"><input type="checkbox" role="switch" id="paleoNames" checked><span class="tr"></span></span></label>
       <label class="item" id="coastRow"><span data-i18n="coast">현재 해안선 윤곽</span><span class="sw"><input type="checkbox" role="switch" id="coast" checked><span class="tr"></span></span></label>
       <label class="item"><span><span data-i18n="seams">판 조각 경계</span><i class="swatch"></i></span><span class="sw"><input type="checkbox" role="switch" id="seams"><span class="tr"></span></span></label>
       <label class="item"><span data-i18n="grid">위경도선</span><span class="sw"><input type="checkbox" role="switch" id="grid" checked><span class="tr"></span></span></label>
-      <label class="item"><span data-i18n="axis">자전축</span><span class="sw"><input type="checkbox" role="switch" id="axis"><span class="tr"></span></span></label>
-      <label class="item"><span data-i18n="paleoNames">대륙·바다 이름</span><span class="sw"><input type="checkbox" role="switch" id="paleoNames" checked><span class="tr"></span></span></label>
     </div>
     <div class="group">
-      <label class="item"><span data-i18n="temp">평균 기온</span><span class="sw"><input type="checkbox" role="switch" id="tempOn" checked><span class="tr"></span></span></label>
-      <div class="item"><span data-i18n="unit">단위</span>
+      <div class="item"><span data-i18n="temp">평균 기온</span>
         <div class="seg" id="unit" role="radiogroup" data-i18n-aria="unit" aria-label="온도 단위">
           <button role="radio" data-u="C" aria-checked="true">°C</button>
           <button role="radio" data-u="F" aria-checked="false">°F</button>
@@ -1367,7 +1371,7 @@ function setMapMode(on) {
   }
   document.body.classList.toggle('mapview', on);
   $('viewSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String((b.dataset.v === 'map') === on)));
-  $('axis').disabled = on; $('axis').closest('.item').classList.toggle('off', on);   // the map always has its poles at top and bottom
+  for (const id of ['axis', 'spin']) { $(id).disabled = on; $(id).closest('.item').classList.toggle('off', on); }   // globe-only settings   // the map always has its poles at top and bottom
   pinAge = null; paleoAge = null;
 }
 
@@ -1507,13 +1511,11 @@ const toU = c => tempUnit === 'F' ? c * 9 / 5 + 32 : c;
 const fmtT = c => toU(c).toFixed(1) + (tempUnit === 'F' ? '°F' : '°C');
 function updateTemp() {
   const el = $('temp'); if (!el) return;
-  el.hidden = !$('tempOn').checked;
   const v = gmstAt(age), u = tempUnit === 'F' ? '°F' : '°C';
   $('tempVal').textContent = v ? fmtT(v[1]) : '—';
   el.title = v ? `${t('tempTitle')} · ${t('tempRange')} ${toU(v[0]).toFixed(0)}–${toU(v[2]).toFixed(0)}${u} · PhanDA (Judd et al. 2024)`
                : t('tempNoFuture');
 }
-$('tempOn').onchange = updateTemp;
 TMUI.segmented($('unit'), b => { tempUnit = b.dataset.u; updateTemp(); });
 updateTemp();
 $('zIn').onclick = () => { if (mapMode) return zoomMapSmooth(1.6); stopAuto(); flyTo(view.spin, view.tilt, 1 + (view.dist - 1) * 0.55, 350); };
