@@ -17,6 +17,17 @@ Today (0 Ma) uses the observed map instead: Beck, H.E. et al. (2023) High-resolu
 17–28 D, 29 ET, 30 EF. The app blends from it to the 20 Ma model slice, and adds the ice of Antarctica (from 34 Ma)
 and Greenland (from 2.7 Ma) that the ice-free model runs lack.
 
+Matched to PhanDA. The FOAM runs warm far less than the global mean temperature the app shows (PhanDA, Judd et al.
+2024, Science, doi:10.1126/science.adk3705; the GMST table in docs/index.html): e.g. +2 °C on land at 100 Ma against
++18 °C. So for each slice the monthly temperatures are shifted until the model's land-mean change from today equals
+PhanDA's change from today, with more of it toward the poles (weight 1 + sin²(latitude), polar amplification). Where
+it warms, the months colder than the annual mean come closer to it, by 1 / (1 + warming / 20 °C), so more of the extra
+warmth goes into winter — proxies show the mild winters of greenhouse climates that models are known to miss (the
+"equable climate" problem); everything is then lowered evenly so the land mean still changes exactly as above. Then the
+classes are worked out again with Peel et al. (2007)'s rules (as in the article's Table 3; this code reproduces the
+published classes for 99.7 % of cells without the shift). Desert and steppe are still decided with the model's own
+temperature and rain: warming without the matching extra rain would turn land arid that the model keeps moist.
+
 Köppen codes in the files (Table 3 of the article) → 8 groups that read on a small globe:
   1 tropical rainforest  Af 13, Am 12          5 temperate  Cf 8, Cs 7, Cw 6
   2 savanna              Aw 11                 6 cold       Df 5, Ds 4, Dw 3
@@ -44,6 +55,36 @@ GROUP = np.zeros(16, np.uint8)
 for k, v in {13: 1, 12: 1, 11: 2, 9: 3, 10: 4, 8: 5, 7: 5, 6: 5, 5: 6, 4: 6, 3: 6, 1: 7, 2: 8}.items():
     GROUP[k] = v
 NG = 8
+html = open(os.path.join(out, 'index.html'), encoding='utf-8').read()
+GMST = json.loads(re.search(r'const GMST = (\[\[.*?\]\]);', html).group(1))      # [age Ma, p16, p50, p84]
+phanda = lambda ma: float(np.interp(ma, [g[0] for g in GMST], [g[2] for g in GMST]))
+
+
+def koppen_group(T, P, lat, Tdry=None):
+    """Peel et al. (2007), as in Pohl et al. (2022) Table 3 → groups 1–8. T °C and P mm/day per month (…, 12).
+    Tdry: temperatures for the aridity (B) test, if different from T."""
+    Pm = P * 30.44
+    def parts(TT):
+        MAT = TT.mean(-1); MAP = Pm.sum(-1)
+        nh = (np.asarray(lat) >= 0)[..., None]; m = np.arange(12)
+        summer = np.where(nh, (m >= 3) & (m <= 8), (m <= 2) | (m >= 9))      # Apr–Sep north, Oct–Mar south
+        Ps = np.where(summer, Pm, 0).sum(-1); Pw = MAP - Ps
+        Pth = np.where(Pw >= 0.7 * MAP, 2 * MAT, np.where(Ps >= 0.7 * MAP, 2 * MAT + 28, 2 * MAT + 14))
+        return MAP, Pth
+    MAP, Pth = parts(T if Tdry is None else Tdry)
+    Thot = T.max(-1); Tcold = T.min(-1); Pdry = Pm.min(-1)
+    g = np.zeros(Thot.shape, np.uint8)
+    E = Thot < 10; B = ~E & (MAP < 10 * Pth)
+    A = ~E & ~B & (Tcold >= 18); C = ~E & ~B & ~A & (Tcold > 0); D = ~E & ~B & ~A & ~C
+    g[A] = np.where((Pdry >= 60) | (Pdry >= 100 - MAP / 25), 1, 2)[A]
+    g[B] = np.where(MAP < 5 * Pth, 3, 4)[B]
+    g[C] = 5; g[D] = 6
+    g[E] = np.where(Thot > 0, 7, 8)[E]
+    return g
+
+
+def land_mean(T, A, ok):
+    w = np.where(ok, A, 0); return float((np.where(ok, T.mean(-1), 0) * w).sum() / w.sum())
 
 
 def read_nc(path):
@@ -97,14 +138,31 @@ files = {int(re.match(r'(\d+)Ma_', os.path.basename(f)).group(1)): f for f in gl
 ages = sorted(files)
 assert len(ages) == 28, ages
 slices = []
+base = None
 for ma in ages:
     d = read_nc(files[ma])
-    lat, lon, k = d['lat'], d['lon'], d['koppen']          # koppen is stored [lon, lat]
+    lat, lon, k = d['lat'], d['lon'], d['koppen']          # stored [lon, lat]
     assert k.shape == (len(lon), len(lat)) and lat[0] < 0
-    k = np.where((k > 0) & (k < 16), np.rint(k), 0).astype(int).T[::-1]   # → [lat north first, lon]
+    T, P, A = d['tssub1'], d['precip'], d['area']
+    ok = (k > 0) & (k < 16) & (T < 1e30).all(-1)
+    T = np.where(T < 1e30, T, 0); P = np.where(P < 1e30, P, 0)
+    LATg = np.ones_like(A) * lat[None, :]
+    fl = land_mean(T, A, ok)
+    if base is None: base = (fl, phanda(0))
+    shift = (phanda(ma) - base[1]) - (fl - base[0])           # PhanDA's change minus the model's, °C on land
+    wgt = 1 + np.sin(np.radians(LATg)) ** 2
+    wgt = wgt / (np.where(ok, wgt * A, 0).sum() / np.where(ok, A, 0).sum())
+    dT = shift * wgt                                          # annual-mean change per cell
+    damp = (1 / (1 + np.maximum(dT, 0) / 20))[..., None]     # warmer → milder winters (equable greenhouse)
+    T1 = T + dT[..., None]; M1 = T1.mean(-1, keepdims=True)
+    T2 = np.where(T1 < M1, M1 + (T1 - M1) * damp, T1)          # only the months below the annual mean move up
+    Tadj = T2 - (land_mean(T2, A, ok) - land_mean(T1, A, ok))   # keep the land-mean change exactly as above
+    gg = np.where(ok, koppen_group(Tadj, P, LATg, Tdry=T), 0)
+    print(f'{ma:3d} Ma  model land {fl - base[0]:+5.1f}  PhanDA {phanda(ma) - base[1]:+5.1f}  shift {shift:+5.1f} °C')
     LAT = lat[::-1]
+    gg = gg.T[::-1]                                          # → [lat north first, lon]
     lon180 = ((lon + 180) % 360) - 180; order = np.argsort(lon180); lon_s = lon180[order]
-    g = fill(GROUP[k][:, order], LAT, lon_s)
+    g = fill(gg[:, order], LAT, lon_s)
     # target cell centres
     tl = 89.75 - STEP * np.arange(H); tn = -179.75 + STEP * np.arange(W)
     fy = np.interp(-tl, -LAT, np.arange(len(LAT)))           # fractional source row
@@ -118,7 +176,7 @@ for ma in ages:
         v = (I[y0][:, x0] * (1 - wx) + I[y0][:, x1] * wx) * (1 - wy) + (I[y1][:, x0] * (1 - wx) + I[y1][:, x1] * wx) * wy
         m = v > best; best[m] = v[m]; arg[m] = c
     slices.append(arg)
-    print(ma, 'Ma', np.bincount(GROUP[k][GROUP[k] > 0].ravel(), minlength=9)[1:])
+    print('        groups', np.bincount(gg[gg > 0].ravel(), minlength=9)[1:])
 
 # today: the observed 1991–2020 map on land (same 0.5° grid from 180°W, 90°N), the model's filled value at sea
 BECK = np.zeros(32, np.uint8)
@@ -131,7 +189,7 @@ print('0 Ma observed (Beck 2023)', np.bincount(og.ravel(), minlength=9)[1:])
 
 Image.fromarray(np.vstack(slices), 'L').save(f'{out}/climate.png', optimize=True)
 json.dump({'source': 'Pohl et al. 2022, Data in Brief 43, 108424 (doi:10.1016/j.dib.2022.108424), FOAM Köppen–Geiger classes on '
-                     'Scotese & Wright paleogeography, Zenodo 6620748, CC BY 4.0; today: Beck et al. 2023 (Sci. Data 10, 724) 1991–2020, CC BY 4.0; grouped into 8, sea filled from the nearest '
+                     'Scotese & Wright paleogeography, Zenodo 6620748, CC BY 4.0; temperatures shifted per slice so the land-mean change matches PhanDA (Judd et al. 2024), more toward the poles, classes recomputed (Peel et al. 2007), aridity from the model as is; today: Beck et al. 2023 (Sci. Data 10, 724) 1991–2020, CC BY 4.0; grouped into 8, sea filled from the nearest '
                      'land class, upsampled to 0.5° with smooth borders.',
            'groups': ['tropical rainforest', 'savanna', 'desert', 'steppe', 'temperate', 'cold', 'tundra', 'ice cap'],
            'ma': ages, 'rows': H, 'cols': W, 'north': 89.75, 'west': -179.75, 'step': STEP},
