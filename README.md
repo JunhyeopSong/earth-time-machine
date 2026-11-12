@@ -21,7 +21,7 @@ An interactive 3D globe that shows how Earth's continents moved — from the Cam
 - **Track any place** — search 1,266 cities, or start from the city nearest to you (from your device location, or roughly from your time zone).
 - **Global mean temperature** for each age, in °C or °F.
 - **Other time machines** — the grid button beside settings switches to [Human Journey](https://junhyeopsong.github.io/human-journey/), which follows people across the world over the last 3.3 million years, keeping your language.
-- **10 languages** — English, 한국어, 日本語, 简体中文, 繁體中文, Español, Français, Deutsch, Português, Русский. Follows your device language.
+- **5 languages** — English, 한국어, 日本語, 繁體中文, Español. Follows your device language, and the language you pick carries over to Human Journey.
 
 ### Controls
 | Action | Mouse / touch | Keyboard |
@@ -68,7 +68,7 @@ Then open http://localhost:8000.
 - **위치 추적** — 1,266개 도시를 검색하거나, 기기 위치(또는 시간대)를 바탕으로 가장 가까운 도시에서 시작합니다.
 - **지구 평균 기온** — 시대별 평균 기온을 °C 또는 °F로 보여줍니다.
 - **다른 타임머신** — 설정 옆 격자 버튼으로 330만 년 동안 인류가 세계로 퍼져 나간 길을 따라가는 [인류의 여정](https://junhyeopsong.github.io/human-journey/)으로 옮겨 갈 수 있고, 언어 설정은 그대로 이어집니다.
-- **10개 언어** — 한국어, English, 日本語, 简体中文, 繁體中文, Español, Français, Deutsch, Português, Русский. 기기 언어를 따릅니다.
+- **5개 언어** — 한국어, English, 日本語, 繁體中文, Español. 기기 언어를 따르며, 고른 언어는 인류의 여정에도 이어집니다.
 
 ### 조작법
 | 동작 | 마우스 / 터치 | 키보드 |

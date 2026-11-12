@@ -188,14 +188,16 @@ const PERIODS = [
 // ---------- i18n ----------
 const I18N = JSON.parse(document.getElementById('i18n-data').textContent);
 const LANGS = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant', 'es', 'fr', 'de', 'pt', 'ru'];
+// languages offered for now (2026-11-12): the others keep their translations but are hidden and never picked
+const LANGS_SHOWN = ['ko', 'en', 'ja', 'zh-Hant', 'es'];
 const LOCALE = { ko: 'ko-KR', en: 'en-US', ja: 'ja-JP', 'zh-Hans': 'zh-CN', 'zh-Hant': 'zh-TW', es: 'es-ES', fr: 'fr-FR', de: 'de-DE', pt: 'pt-BR', ru: 'ru-RU' };
 const CITYKEY = { ko: 'ko', en: 'en', ja: 'ja', 'zh-Hans': 'zh', 'zh-Hant': 'zht', es: 'es', fr: 'fr', de: 'de', pt: 'pt', ru: 'ru' };
 function pickLang() {
-  try { const v = localStorage.getItem('lang'); if (LANGS.includes(v)) return v; } catch (_) {}
+  try { for (const k of ['tm.lang', 'lang']) { const v = localStorage.getItem(k); if (LANGS_SHOWN.includes(v)) return v; } } catch (_) {}   // shared with Human Journey
   for (const l of (navigator.languages || [navigator.language || 'en'])) {
     const x = String(l).toLowerCase();
-    if (x.startsWith('zh')) return /tw|hk|mo|hant/.test(x) ? 'zh-Hant' : 'zh-Hans';
-    const b = x.slice(0, 2); if (LANGS.includes(b)) return b;
+    if (x.startsWith('zh')) return 'zh-Hant';           // Simplified Chinese is hidden for now
+    const b = x.slice(0, 2); if (LANGS_SHOWN.includes(b)) return b;
   }
   return 'en';
 }
@@ -1635,9 +1637,9 @@ function applyLang() {
 }
 (() => {
   const sel = $('lang');
-  LANGS.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = I18N[k].name; sel.appendChild(o); });
+  LANGS_SHOWN.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = I18N[k].name; sel.appendChild(o); });
   sel.value = LANG;
-  sel.onchange = () => { LANG = sel.value; try { localStorage.setItem('lang', LANG); } catch (_) {} applyLang(); };
+  sel.onchange = () => { LANG = sel.value; try { localStorage.setItem('tm.lang', LANG); localStorage.setItem('lang', LANG); } catch (_) {} applyLang(); };   // both keys, so Human Journey follows
 })();
 // ---------- nearest city from the device location ----------
 let locBusy = false, cityFromTZ = false;   // cityFromTZ: the field holds the rough time-zone guess
