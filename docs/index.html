@@ -1367,8 +1367,8 @@ function setMapMode(on) {
   if (on && !was) {   // open the map centred on what the globe was showing
     const c = earth.worldToLocal(camera.position.clone()).normalize();
     MAP.lon0 = llOf(c).lon; MAP.zoom = 1; MAP.my = 0; MAP.tween = null; mapLayout();
-    G.autoSpin = false; $('spin').checked = false; G.halt();
-  }
+    G.autoSpin = false; G.halt();   // pause the hidden globe; the switch keeps its state, like the axis switch
+  } else if (!on && was) G.autoSpin = $('spin').checked;   // back on the globe: resume if it was on
   document.body.classList.toggle('mapview', on);
   $('viewSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String((b.dataset.v === 'map') === on)));
   for (const id of ['axis', 'spin']) { $(id).disabled = on; $(id).closest('.item').classList.toggle('off', on); }   // globe-only settings   // the map always has its poles at top and bottom
