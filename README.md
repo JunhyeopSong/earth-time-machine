@@ -19,6 +19,7 @@ An interactive 3D globe that shows how Earth's continents moved — from the Cam
 - **Major events on the map** — the Chicxulub impact, the Siberian and Deccan Traps, the first dinosaurs, India hitting Asia and more, many with animated map effects.
 - **The future** — Scotese's forecast plate motions to +100 million years, with a simple model of new mountains, basins, erosion and trenches where plates collide.
 - **Track any place** — search 1,266 cities, or start from the city nearest to you (from your device location, or roughly from your time zone).
+- **Terrain or environment** — show the land by height, or by its Köppen climate zones (rainforest, savanna, desert, steppe, temperate, cold, tundra, ice cap): Pangaea's great deserts, the warm poles of the Cretaceous, Antarctica icing over 34 million years ago. A sketch from a climate model every 20 million years; today is the observed map.
 - **Global mean temperature** for each age, in °C or °F.
 - **Other time machines** — the grid button beside settings switches to [Human Journey](https://junhyeopsong.github.io/human-journey/), which follows people across the world over the last 3.3 million years, keeping your language.
 - **5 languages** — English, 한국어, 日本語, 繁體中文, Español. Follows your device language, and the language you pick carries over to Human Journey.
@@ -38,6 +39,7 @@ An interactive 3D globe that shows how Earth's continents moved — from the Cam
 | Past terrain & coastlines | Scotese & Wright (2018), PALEOMAP PaleoDEMs — [Zenodo 5460860](https://zenodo.org/records/5460860) | CC BY 4.0 |
 | Plate rotations & plate polygons | PALEOMAP PaleoAtlas for GPlates (Scotese) — [doi:10.5281/zenodo.10596609](https://doi.org/10.5281/zenodo.10596609), via [GPlates Web Service](https://gws.gplates.org) | CC BY 4.0 |
 | Global mean temperature | PhanDA, Judd et al. (2024), *Science* — [doi:10.1126/science.adk3705](https://doi.org/10.1126/science.adk3705) ([GitHub](https://github.com/EJJudd/PhanDA)) | Cited research result |
+| Climate zones (environment map style) | Pohl et al. (2022), *Data in Brief* — [doi:10.1016/j.dib.2022.108424](https://doi.org/10.1016/j.dib.2022.108424), FOAM climate model on the Scotese & Wright paleogeography, Köppen–Geiger classes every 20 Myr from 540 Ma ([Zenodo 6620748](https://doi.org/10.5281/zenodo.6620748)); today: Beck et al. (2023), *Sci. Data* — [doi:10.1038/s41597-023-02549-6](https://doi.org/10.1038/s41597-023-02549-6), observed 1991–2020, 0.5° ([figshare 21789074](https://doi.org/10.6084/m9.figshare.21789074)); grouped into 8 by `tools/build_climate_zones.py` | CC BY 4.0 |
 | Cities | [Natural Earth](https://www.naturalearthdata.com) populated places | Public domain |
 | Event timeline reference | Geological event chart by Mark (UK), shared with the project; events were checked against published sources before adding | Used with permission |
 | 3D rendering | [three.js](https://threejs.org) r128 | MIT |
@@ -66,6 +68,7 @@ Then open http://localhost:8000.
 - **지도 위 주요 사건** — 칙술루브 소행성 충돌, 시베리아·데칸 트랩, 최초의 공룡, 인도-아시아 충돌 등. 상당수는 지도 위 애니메이션 효과가 있습니다.
 - **미래 예측** — 1억 년 뒤까지 Scotese의 판 운동 예측을 따르고, 대륙이 부딪히는 곳의 산맥·분지·침식·해구를 단순한 모델로 계산했습니다.
 - **위치 추적** — 1,266개 도시를 검색하거나, 기기 위치(또는 시간대)를 바탕으로 가장 가까운 도시에서 시작합니다.
+- **지형 또는 환경** — 땅을 높낮이로, 또는 쾨펜 기후대(열대 우림·사바나·사막·스텝·온대·냉대·툰드라·빙설)로 칠합니다. 판게아의 거대한 사막, 극지방까지 따뜻했던 백악기, 3,400만 년 전 얼어붙는 남극이 보입니다. 2천만 년 간격의 기후 모델 개략도이고, 현재는 관측 지도입니다.
 - **지구 평균 기온** — 시대별 평균 기온을 °C 또는 °F로 보여줍니다.
 - **다른 타임머신** — 설정 옆 격자 버튼으로 330만 년 동안 인류가 세계로 퍼져 나간 길을 따라가는 [인류의 여정](https://junhyeopsong.github.io/human-journey/)으로 옮겨 갈 수 있고, 언어 설정은 그대로 이어집니다.
 - **5개 언어** — 한국어, English, 日本語, 繁體中文, Español. 기기 언어를 따르며, 고른 언어는 인류의 여정에도 이어집니다.
@@ -85,6 +88,7 @@ Then open http://localhost:8000.
 | 과거 지형·해안선 | Scotese & Wright (2018), PALEOMAP PaleoDEMs — [Zenodo 5460860](https://zenodo.org/records/5460860) | CC BY 4.0 |
 | 판 회전·판 다각형 | PALEOMAP PaleoAtlas for GPlates (Scotese) — [doi:10.5281/zenodo.10596609](https://doi.org/10.5281/zenodo.10596609), [GPlates Web Service](https://gws.gplates.org) 이용 | CC BY 4.0 |
 | 지구 평균 기온 | PhanDA, Judd et al. (2024), *Science* — [doi:10.1126/science.adk3705](https://doi.org/10.1126/science.adk3705) ([GitHub](https://github.com/EJJudd/PhanDA)) | 논문 결과 인용 |
+| 기후대 (지도 표현: 환경) | Pohl 외 (2022), *Data in Brief* — [doi:10.1016/j.dib.2022.108424](https://doi.org/10.1016/j.dib.2022.108424), Scotese & Wright 고지리 위 FOAM 기후 모델, 5억 4천만 년 전부터 2천만 년 간격의 쾨펜–가이거 기후대([Zenodo 6620748](https://doi.org/10.5281/zenodo.6620748)); 현재는 Beck 외 (2023), *Sci. Data* — [doi:10.1038/s41597-023-02549-6](https://doi.org/10.1038/s41597-023-02549-6), 1991–2020 관측, 0.5°([figshare 21789074](https://doi.org/10.6084/m9.figshare.21789074)); `tools/build_climate_zones.py`로 8개로 묶음 | CC BY 4.0 |
 | 도시 | [Natural Earth](https://www.naturalearthdata.com) populated places | 퍼블릭 도메인 |
 | 사건 연표 참고 | Mark(영국)가 보내준 지질 사건 연표. 추가한 사건은 공개된 자료로 다시 확인함 | 허락받아 참고 |
 | 3D 렌더링 | [three.js](https://threejs.org) r128 | MIT |
