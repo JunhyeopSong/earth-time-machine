@@ -38,6 +38,7 @@ An interactive 3D globe that shows how Earth's continents moved — from the Cam
 | Plate rotations & plate polygons | PALEOMAP PaleoAtlas for GPlates (Scotese) — [doi:10.5281/zenodo.10596609](https://doi.org/10.5281/zenodo.10596609), via [GPlates Web Service](https://gws.gplates.org) | CC BY 4.0 |
 | Global mean temperature | PhanDA, Judd et al. (2024), *Science* — [doi:10.1126/science.adk3705](https://doi.org/10.1126/science.adk3705) ([GitHub](https://github.com/EJJudd/PhanDA)) | Cited research result |
 | Cities | [Natural Earth](https://www.naturalearthdata.com) populated places | Public domain |
+| Event timeline reference | Geological event chart by Mark (UK), shared with the project; events were checked against published sources before adding | Used with permission |
 | 3D rendering | [three.js](https://threejs.org) r128 | MIT |
 
 **Notes.** The future section follows Scotese's forecast; terrain changes from collisions and subduction are a rule-based estimate, not a physical simulation. Event descriptions and translations were written from general geology references — corrections are welcome.
@@ -83,6 +84,7 @@ Then open http://localhost:8000.
 | 판 회전·판 다각형 | PALEOMAP PaleoAtlas for GPlates (Scotese) — [doi:10.5281/zenodo.10596609](https://doi.org/10.5281/zenodo.10596609), [GPlates Web Service](https://gws.gplates.org) 이용 | CC BY 4.0 |
 | 지구 평균 기온 | PhanDA, Judd et al. (2024), *Science* — [doi:10.1126/science.adk3705](https://doi.org/10.1126/science.adk3705) ([GitHub](https://github.com/EJJudd/PhanDA)) | 논문 결과 인용 |
 | 도시 | [Natural Earth](https://www.naturalearthdata.com) populated places | 퍼블릭 도메인 |
+| 사건 연표 참고 | Mark(영국)가 보내준 지질 사건 연표. 추가한 사건은 공개된 자료로 다시 확인함 | 허락받아 참고 |
 | 3D 렌더링 | [three.js](https://threejs.org) r128 | MIT |
 
 **참고.** 미래 구간은 Scotese의 예측을 따르며, 충돌·섭입에 따른 지형 변화는 물리 시뮬레이션이 아니라 규칙에 따른 추정입니다. 사건 설명과 번역은 일반적인 지질학 자료를 바탕으로 작성했습니다. 틀린 부분을 알려주시면 고치겠습니다.
